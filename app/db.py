@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS news (
     link        TEXT PRIMARY KEY,
     source      TEXT,
     title       TEXT,
+    title_ko    TEXT,                 -- 영문→한글 번역(없으면 원문 표시)
     published   TEXT,
     summary     TEXT,
     first_seen  TEXT
@@ -106,10 +107,18 @@ CREATE INDEX IF NOT EXISTS idx_hist_key_date ON history(key, date DESC);
 """
 
 
+def _migrate(con: sqlite3.Connection) -> None:
+    """기존 DB에 신규 컬럼 멱등 추가(ALTER 는 IF NOT EXISTS 미지원)."""
+    cols = {r[1] for r in con.execute("PRAGMA table_info(news)").fetchall()}
+    if "title_ko" not in cols:
+        con.execute("ALTER TABLE news ADD COLUMN title_ko TEXT")
+
+
 def init_db() -> None:
     settings.db_path.parent.mkdir(parents=True, exist_ok=True)
     with connect() as con:
         con.executescript(SCHEMA)
+        _migrate(con)
         con.commit()
 
 

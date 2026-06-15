@@ -65,6 +65,11 @@ class Settings:
     claude_model: str = os.getenv("CLAUDE_MODEL", "").strip()
     llm_timeout: int = _i("LLM_TIMEOUT", 180)
 
+    # 뉴스 영문→한글 번역(claude -p, 신규 항목만 캐시). 실패 시 원문 표시.
+    enable_news_translation: bool = _b("ENABLE_NEWS_TRANSLATION", True)
+    claude_translate_model: str = os.getenv("CLAUDE_TRANSLATE_MODEL", "haiku").strip()
+    translate_timeout: int = _i("TRANSLATE_TIMEOUT", 60)
+
     fred_api_key: str = os.getenv("FRED_API_KEY", "").strip()
     ecos_api_key: str = os.getenv("ECOS_API_KEY", "").strip()
 

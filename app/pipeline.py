@@ -16,6 +16,7 @@ from apscheduler.triggers.cron import CronTrigger
 from . import repository as repo
 from .analysis import briefing as briefing_mod
 from .analysis import regime as regime_mod
+from .analysis import translate as translate_mod
 from .collectors.base import ALL_COLLECTORS
 from .config import settings, INDICATORS, INDICATOR_BY_KEY
 from .logging_setup import logger
@@ -50,6 +51,28 @@ def _compute_derived(quotes: dict[str, Quote]) -> list[Quote]:
                          prev_close=prev, as_of=(lq.as_of or rq.as_of),
                          history=hist, ok=True))
     return out
+
+
+def _translate_news() -> None:
+    """미번역 뉴스(영문)만 일괄 번역해 저장. 한글 제목은 LLM 없이 그대로 캐시."""
+    rows = repo.news_needing_translation(60)
+    if not rows:
+        return
+    to_translate = []
+    for r in rows:
+        if translate_mod.needs_translation(r["title"]):
+            to_translate.append(r)
+        else:
+            repo.set_news_translation(r["link"], r["title"])  # 이미 한국어 → 캐시
+    if not to_translate:
+        return
+    kos = translate_mod.translate_titles([r["title"] for r in to_translate])
+    n = 0
+    for r, ko in zip(to_translate, kos):
+        if ko and ko != r["title"]:
+            repo.set_news_translation(r["link"], ko)
+            n += 1
+    logger.info("  - 뉴스 번역 %d/%d건", n, len(to_translate))
 
 
 def _escalate_failures(healths, ts_utc: str) -> None:
@@ -220,6 +243,10 @@ def _do_run_inner(started: datetime, ts_utc: str, snapshot_id: int) -> dict:
     _escalate_failures(healths, ts_utc)
     repo.save_health(snapshot_id, healths)
     repo.upsert_news(news, ts_utc)
+    try:
+        _translate_news()
+    except Exception:  # noqa: BLE001 — 번역 실패가 수집을 막지 않게
+        logger.warning("뉴스 번역 단계 실패(무시) — 원문 표시")
     repo.upsert_calendar(events)
     repo.finish_snapshot(snapshot_id, datetime.now(timezone.utc).isoformat(), ok_count, fail_count)
 

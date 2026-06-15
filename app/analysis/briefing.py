@@ -44,10 +44,12 @@ def resolve_claude() -> Optional[str]:
     return None
 
 
-def _command(exe: str) -> list[str]:
+def _command(exe: str, model: Optional[str] = None) -> list[str]:
+    """claude -p 명령 구성. model 미지정 시 브리핑 모델(settings.claude_model) 사용."""
+    use_model = model if model is not None else settings.claude_model
     args = ["-p", "--output-format", "json"]
-    if settings.claude_model:
-        args += ["--model", settings.claude_model]
+    if use_model:
+        args += ["--model", use_model]
     # Windows 의 .cmd/.bat 셔임은 cmd /c 로 실행해야 함
     if os.name == "nt" and exe.lower().endswith((".cmd", ".bat")):
         return ["cmd", "/c", exe, *args]

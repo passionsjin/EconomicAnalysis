@@ -149,9 +149,12 @@
     <ul class="news">
       {% for n in d.news %}
       <li>
-        <a href="{{ n.link }}" target="_blank" rel="noopener">{{ n.title }}</a>
+        <a href="{{ n.link }}" target="_blank" rel="noopener"
+           class="{% if n.title_ko %}translated{% endif %}"
+           {% if n.title_ko %}title="원문: {{ n.title }}"{% endif %}>{{ n.title_ko or n.title }}</a>
         <div class="news-meta">
           <span class="src">{{ n.source }}</span>
+          {% if n.title_ko %}<span class="trbadge" title="자동 번역(원문은 제목에 마우스 올리기)">번역</span>{% endif %}
           {% if n.published %}· <time class="kst rel" data-utc="{{ n.published }}">—</time>{% endif %}
         </div>
       </li>

@@ -259,6 +259,22 @@ def recent_news(limit: int = 30) -> list[dict]:
         return [dict(r) for r in rows]
 
 
+def news_needing_translation(limit: int = 60) -> list[dict]:
+    """아직 번역 안 된(title_ko IS NULL) 최근 뉴스 — 최신 우선."""
+    with get_con() as con:
+        rows = con.execute(
+            "SELECT link, title FROM news WHERE title_ko IS NULL "
+            "ORDER BY COALESCE(published, first_seen) DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def set_news_translation(link: str, title_ko: str) -> None:
+    with get_con() as con:
+        con.execute("UPDATE news SET title_ko=? WHERE link=?", (title_ko, link))
+
+
 def upcoming_calendar(limit: int = 30) -> list[dict]:
     with get_con() as con:
         rows = con.execute(

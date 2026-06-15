@@ -199,3 +199,32 @@ INDICATOR_BY_KEY: dict[str, Indicator] = {ind.key: ind for ind in INDICATORS}
 
 def indicators_for_source(source: str) -> list[Indicator]:
     return [ind for ind in INDICATORS if ind.source == source]
+
+
+# ── 지표 우선순위(브리핑 신호/잡음 + 화면 강조) ──
+# 1=핵심(레짐·정책·위험), 2=보통(기본), 3=부가(세부 원자재/만기/지역지수)
+_PRIORITY_1 = {
+    "sp500", "nasdaq", "vix", "us10y", "us_real10y", "dxy", "us_fedfunds",
+    "us_cpi_yoy", "us_10y2y", "us_hy_spread", "kospi", "usdkrw", "gold", "btc", "wti",
+}
+_PRIORITY_3 = {
+    "silver", "copper", "natgas", "us05y", "us13w", "us30y",
+    "eurusd", "usdjpy", "usdcny", "eth", "shanghai", "eustoxx", "hangseng",
+}
+
+
+def priority_of(key: str) -> int:
+    if key in _PRIORITY_1:
+        return 1
+    if key in _PRIORITY_3:
+        return 3
+    return 2
+
+
+# ── 데이터 신뢰 구분(소스 성격) ──
+_SOURCE_TIER = {"yahoo": "시장", "fred": "공식", "ecos": "공식", "derived": "파생"}
+
+
+def source_tier(key: str) -> str:
+    ind = INDICATOR_BY_KEY.get(key)
+    return _SOURCE_TIER.get(ind.source, "—") if ind else "—"

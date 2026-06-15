@@ -103,6 +103,66 @@ async function drawSpark(canvas) {
   });
 }
 
+/* ── 즐겨찾기(localStorage) ── */
+function getFavs() { try { return JSON.parse(localStorage.getItem("favs") || "[]"); } catch (e) { return []; } }
+function setFavs(a) { try { localStorage.setItem("favs", JSON.stringify(a)); } catch (e) {} }
+function toggleFav(ev, key) {
+  ev.stopPropagation();
+  const f = getFavs(); const i = f.indexOf(key);
+  if (i >= 0) f.splice(i, 1); else f.push(key);
+  setFavs(f); applyFavs();
+}
+function applyFavs() {
+  const f = getFavs();
+  document.querySelectorAll(".ind").forEach((c) => {
+    const on = f.includes(c.dataset.key);
+    c.classList.toggle("isfav", on);
+    const btn = c.querySelector(".fav");
+    if (btn) btn.classList.toggle("on", on);
+  });
+  filterIndicators();
+}
+
+/* ── 검색·필터 ── */
+function filterIndicators() {
+  const q = (document.getElementById("ind-search")?.value || "").trim().toLowerCase();
+  const favOnly = document.getElementById("fav-only")?.checked;
+  const prioOnly = document.getElementById("prio-only")?.checked;
+  const favs = getFavs();
+  document.querySelectorAll(".ind").forEach((c) => {
+    const label = (c.dataset.label || "").toLowerCase();
+    const key = (c.dataset.key || "").toLowerCase();
+    let show = !q || label.includes(q) || key.includes(q);
+    if (favOnly && !favs.includes(c.dataset.key)) show = false;
+    if (prioOnly && c.dataset.prio !== "1") show = false;
+    c.style.display = show ? "" : "none";
+  });
+  document.querySelectorAll(".group").forEach((g) => {
+    const any = [...g.querySelectorAll(".ind")].some((c) => c.style.display !== "none");
+    g.style.display = any ? "" : "none";
+  });
+}
+
+/* ── CSV 내보내기(현재 표시 중인 지표) ── */
+function exportCsv() {
+  const rows = [["지표", "값", "변화", "백분위", "카테고리"]];
+  document.querySelectorAll(".ind").forEach((c) => {
+    if (c.style.display === "none") return;
+    rows.push([
+      c.dataset.label || "",
+      (c.querySelector(".ind-value")?.textContent || "").trim(),
+      (c.querySelector(".chg")?.textContent || "").trim(),
+      (c.querySelector(".pctbar em")?.textContent || "").trim(),
+      c.dataset.cat || "",
+    ]);
+  });
+  const csv = rows.map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "indicators.csv"; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 /* ── 자산간 상관 히트맵 ── */
 function corrColor(c) {
   if (c === null || c === undefined) return "transparent";
@@ -225,6 +285,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(applyTimes, 60000); // 상대시간 갱신
   const sparks = document.querySelectorAll("canvas.spark");
   if (sparks.length) pool([...sparks], drawSpark, 6);
+  applyFavs();
   renderCorrelations();
   autoRefreshLoop();
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });

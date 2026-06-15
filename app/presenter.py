@@ -6,8 +6,10 @@ from typing import Optional
 
 from . import repository as repo
 from .analysis import regime as regime_mod
+from .analysis import stats as stats_mod
 from .collectors.base import ALL_COLLECTORS
-from .config import CATEGORIES, INDICATORS, INDICATOR_BY_KEY, Indicator
+from .config import (CATEGORIES, INDICATORS, INDICATOR_BY_KEY, Indicator,
+                     priority_of, source_tier)
 
 # 빈도별 신선도 임계(시간) — 초과 시 'stale' 경고. 월별은 발표주기 고려해 넉넉히.
 _STALE_HOURS = {"D": 24 * 3, "W": 24 * 10, "M": 24 * 55}
@@ -77,12 +79,16 @@ def _indicator_view(ind: Indicator, obs: dict) -> dict:
         change_sub_fmt = f"{change:+,.{ind.decimals}f}" if change is not None else ""
 
     st = _staleness(row.get("as_of"), ind.freq) if ok else None
+    enr = stats_mod.enrich(ind.key, value, ind.freq) if ok else {"ctx": None, "momentum": None}
+    ctx, mom = enr["ctx"], enr["momentum"]
     return {
         "key": ind.key,
         "label": ind.label,
         "category": ind.category,
         "unit": ind.unit,
         "note": ind.note,
+        "priority": priority_of(ind.key),
+        "tier": source_tier(ind.key),          # 시장/공식/파생 (데이터 신뢰 구분)
         "ok": ok,
         "value": value,
         "value_fmt": fmt_value(ind, value) if ok else "—",
@@ -97,6 +103,10 @@ def _indicator_view(ind: Indicator, obs: dict) -> dict:
         "as_of": row.get("as_of"),
         "stale": bool(st and st["stale"]),
         "age_days": st["age_days"] if st else None,
+        "percentile": ctx["percentile"] if ctx else None,   # 역사적 백분위(0~100)
+        "zscore": ctx["zscore"] if ctx else None,
+        "anomaly": bool(ctx and ctx["anomaly"]),             # |z|≥3 통계적 이상치
+        "momentum": mom,                                     # {w1,m1,m3,ytd} (일별만)
         "error": row.get("error"),
     }
 

@@ -82,31 +82,48 @@
   {% endif %}
 </section>
 
+{# ───────── 지표 도구막대(검색·필터·내보내기) ───────── #}
+<div class="toolbar">
+  <input type="search" id="ind-search" placeholder="🔍 지표 검색…" oninput="filterIndicators()">
+  <label class="auto"><input type="checkbox" id="fav-only" onchange="filterIndicators()"> 즐겨찾기만</label>
+  <label class="auto"><input type="checkbox" id="prio-only" onchange="filterIndicators()"> 핵심지표만</label>
+  <span class="spacer"></span>
+  <button class="btn ghost" onclick="exportCsv()" title="표시 중인 지표를 CSV로">⬇ CSV</button>
+</div>
+
 {# ───────── 지표 그룹 ───────── #}
 {% for g in d.groups %}
 <section class="group">
   <h3 class="group-title">{{ g.label }} <span class="count">{{ g['items']|length }}</span></h3>
   <div class="grid">
     {% for it in g['items'] %}
-    <div class="ind card {{ it.tone }} {% if not it.ok %}stale{% endif %}"
+    <div class="ind card {{ it.tone }} {% if not it.ok %}stale{% endif %}{% if it.anomaly %} anomaly{% endif %}"
+         data-key="{{ it.key }}" data-label="{{ it.label }}" data-cat="{{ it.category }}" data-prio="{{ it.priority }}"
          onclick="openChart('{{ it.key }}', '{{ it.label }}', '{{ it.unit }}')">
       <div class="ind-top">
-        <span class="ind-label">{{ it.label }}</span>
-        {% if it.ok and it.has_change %}
-          <span class="chg {{ it.tone }} {{ it.sign }}">{{ it.change_main_fmt }}</span>
-        {% endif %}
+        <span class="ind-label">{{ it.label }}{% if it.tier == '파생' %}<span class="tierdot" title="파생 계산 지표">∆</span>{% endif %}</span>
+        <span class="ind-top-r">
+          {% if it.ok and it.has_change %}<span class="chg {{ it.tone }} {{ it.sign }}">{{ it.change_main_fmt }}</span>{% endif %}
+          <button class="fav" title="즐겨찾기" onclick="toggleFav(event,'{{ it.key }}')">★</button>
+        </span>
       </div>
-      <div class="ind-value">{{ it.value_fmt }}</div>
+      <div class="ind-value">{{ it.value_fmt }}{% if it.anomaly %}<span class="anom" title="통계적 이상치(|z|≥3) — 데이터 확인">⚠</span>{% endif %}</div>
       <div class="ind-foot">
         {% if it.ok %}
           {% if it.has_change %}<span class="basis" title="변화 기준">{{ it.basis }}</span>{% endif %}
           {% if it.change_sub_fmt %}<span class="chgabs {{ it.tone }}">{{ it.change_sub_fmt }}</span>{% endif %}
+          {% if it.momentum and it.momentum.m1 is not none %}<span class="mom" title="1개월 모멘텀">1M {{ '%+.1f'|format(it.momentum.m1) }}%</span>{% endif %}
           {% if it.stale %}<span class="agewarn" title="데이터가 오래됨(신선도 경고)">⏱{{ it.age_days }}일전</span>{% endif %}
           {% if it.note %}<span class="note" title="{{ it.note }}">ⓘ</span>{% endif %}
         {% else %}
           <span class="err" title="{{ it.error }}">수집 실패</span>
         {% endif %}
       </div>
+      {% if it.ok and it.percentile is not none %}
+      <div class="pctbar" title="역사적 백분위 {{ it.percentile }}%ile (최근 약 1년 분포 내 위치)">
+        <span style="width:{{ it.percentile }}%"></span><em>{{ it.percentile }}%ile</em>
+      </div>
+      {% endif %}
       <canvas class="spark" data-key="{{ it.key }}" data-tone="{{ it.tone }}" height="34"></canvas>
     </div>
     {% endfor %}

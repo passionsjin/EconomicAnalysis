@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% set senti = {
+  'risk-on':  ('위험선호', 'good'),
+  'risk-off': ('위험회피', 'bad'),
+  'neutral':  ('중립', 'neutral'),
+  'mixed':    ('혼조', 'warn')
+} %}
+{% block content %}
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">📊</span>
+    <div>
+      <h1>거시경제 시황 대시보드</h1>
+      <div class="sub">
+        {% if d.snapshot %}
+          기준 <time class="kst" data-utc="{{ d.snapshot.finished_utc or d.snapshot.ts_utc }}">—</time>
+          {% if historical %}<span class="pill warn">과거 스냅샷 #{{ d.snapshot.id }}</span>{% endif %}
+        {% else %}데이터 수집 대기 중{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="actions">
+    <a class="btn ghost" href="/history">이력</a>
+    <label class="auto"><input type="checkbox" id="autorefresh" checked> 자동새로고침</label>
+    <button class="btn primary" id="collect-btn" onclick="collectNow()">⟳ 지금 수집</button>
+  </div>
+</header>
+
+<div class="healthstrip">
+  {% for h in d.health %}
+    <span class="hbadge {{ h.state }}" title="{{ h.message }} · {{ h.latency_ms }}ms">
+      <i></i>{{ h.label }}
+      {% if h.state == 'idle' %}<small>비활성</small>
+      {% elif h.state == 'down' %}<small>오류</small>
+      {% elif h.state == 'partial' %}<small>{{ h.fetched }}✓ {{ h.failed }}✕</small>
+      {% else %}<small>{{ h.fetched }}</small>{% endif %}
+    </span>
+  {% endfor %}
+  <span class="spacer"></span>
+  <span class="status-note" id="status-note"></span>
+</div>
+
+{% if d.empty %}
+  <section class="empty">
+    <div class="spinner"></div>
+    <p>첫 수집을 진행하고 있습니다. 잠시 후 자동으로 표시됩니다…</p>
+    <p class="muted">수집에는 보통 10~60초가 걸립니다 (LLM 브리핑 포함).</p>
+  </section>
+{% else %}
+
+{# ───────── LLM 브리핑 ───────── #}
+<section class="briefing card">
+  {% if d.briefing and d.briefing.ok %}
+    {% set s = senti.get(d.briefing.sentiment, ('중립','neutral')) %}
+    <div class="brief-head">
+      <span class="badge {{ s[1] }}">{{ s[0] }}</span>
+      <h2>{{ d.briefing.headline or '시황 브리핑' }}</h2>
+    </div>
+    {% if d.briefing.summary %}<p class="brief-summary">{{ d.briefing.summary }}</p>{% endif %}
+    <div class="brief-body markdown" id="brief-body"></div>
+    <div class="brief-meta">
+      <span>🤖 {{ d.briefing.model or 'Claude Code' }}</span>
+      <time class="kst" data-utc="{{ d.briefing.ts_utc }}">—</time>
+      {% if d.briefing.error %}<span class="muted">· {{ d.briefing.error }}</span>{% endif %}
+    </div>
+  {% elif d.briefing %}
+    <div class="brief-head"><span class="badge neutral">브리핑 없음</span><h2>LLM 브리핑 생성 실패</h2></div>
+    <p class="muted">{{ d.briefing.error or '원인 미상' }} — 데이터 대시보드는 정상 동작합니다.</p>
+  {% else %}
+    <div class="brief-head"><span class="badge neutral">대기</span><h2>브리핑 생성 대기 중</h2></div>
+  {% endif %}
+</section>
+
+{# ───────── 지표 그룹 ───────── #}
+{% for g in d.groups %}
+<section class="group">
+  <h3 class="group-title">{{ g.label }} <span class="count">{{ g['items']|length }}</span></h3>
+  <div class="grid">
+    {% for it in g['items'] %}
+    <div class="ind card {{ it.tone }} {% if not it.ok %}stale{% endif %}"
+         onclick="openChart('{{ it.key }}', '{{ it.label }}', '{{ it.unit }}')">
+      <div class="ind-top">
+        <span class="ind-label">{{ it.label }}</span>
+        {% if it.ok and it.has_change %}
+          <span class="chg {{ it.tone }} {{ it.sign }}">{{ it.change_main_fmt }}</span>
+        {% endif %}
+      </div>
+      <div class="ind-value">{{ it.value_fmt }}</div>
+      <div class="ind-foot">
+        {% if it.ok %}
+          {% if it.change_sub_fmt %}<span class="chgabs {{ it.tone }}">{{ it.change_sub_fmt }}</span>{% endif %}
+          {% if it.note %}<span class="note" title="{{ it.note }}">ⓘ</span>{% endif %}
+        {% else %}
+          <span class="err" title="{{ it.error }}">수집 실패</span>
+        {% endif %}
+      </div>
+      <canvas class="spark" data-key="{{ it.key }}" data-tone="{{ it.tone }}" height="34"></canvas>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+{# ───────── 뉴스 / 캘린더 ───────── #}
+<div class="cols">
+  <section class="card col">
+    <h3 class="group-title">📰 경제 뉴스</h3>
+    <ul class="news">
+      {% for n in d.news %}
+      <li>
+        <a href="{{ n.link }}" target="_blank" rel="noopener">{{ n.title }}</a>
+        <div class="news-meta">
+          <span class="src">{{ n.source }}</span>
+          {% if n.published %}· <time class="kst rel" data-utc="{{ n.published }}">—</time>{% endif %}
+        </div>
+      </li>
+      {% else %}<li class="muted">수집된 뉴스가 없습니다.</li>{% endfor %}
+    </ul>
+  </section>
+
+  <section class="card col">
+    <h3 class="group-title">🗓️ 경제지표 발표 일정</h3>
+    <ul class="cal">
+      {% for e in d.calendar %}
+      <li class="impact-{{ e.impact|lower }}">
+        <div class="cal-when"><time class="kst dt" data-utc="{{ e.date_utc }}">—</time></div>
+        <div class="cal-body">
+          <span class="cal-title">{{ e.country }} · {{ e.title }}</span>
+          <span class="cal-nums">
+            {% if e.forecast %}예상 {{ e.forecast }}{% endif %}
+            {% if e.previous %}· 이전 {{ e.previous }}{% endif %}
+            {% if e.actual %}· <b>실제 {{ e.actual }}</b>{% endif %}
+          </span>
+        </div>
+      </li>
+      {% else %}<li class="muted">예정된 발표가 없습니다.</li>{% endfor %}
+    </ul>
+  </section>
+</div>
+
+{% endif %}
+
+<footer class="foot">
+  <span>로컬 구동 · 데이터: Yahoo Finance · FRED · ECOS · RSS · ForexFactory</span>
+  <span>거시경제 분석 대시보드 v1.0</span>
+</footer>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.__BRIEFING_MD__ = {{ (d.briefing.body_md if d.briefing and d.briefing.ok else "") | tojson }};
+  window.__HISTORICAL__ = {{ 'true' if historical else 'false' }};
+</script>
+{% endblock %}

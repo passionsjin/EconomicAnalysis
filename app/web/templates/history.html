@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">🗂️</span>
+    <div><h1>브리핑 이력</h1><div class="sub">과거 스냅샷을 클릭하면 그 시점 브리핑을 봅니다</div></div>
+  </div>
+  <div class="actions"><a class="btn ghost" href="/">← 대시보드</a></div>
+</header>
+
+<section class="card">
+  <table class="histtable">
+    <thead>
+      <tr><th>#</th><th>수집 시각 (KST)</th><th>성공</th><th>실패</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for s in snapshots %}
+      <tr onclick="location.href='/report/{{ s.id }}'">
+        <td class="mono">{{ s.id }}</td>
+        <td><time class="kst" data-utc="{{ s.finished_utc or s.ts_utc }}">—</time></td>
+        <td class="good">{{ s.ok_count }}</td>
+        <td class="{{ 'bad' if s.fail_count else 'muted' }}">{{ s.fail_count }}</td>
+        <td class="arrow">→</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="muted">아직 수집된 스냅샷이 없습니다.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

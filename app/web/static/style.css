@@ -1,0 +1,160 @@
+:root{
+  --bg:#0b0e14; --bg2:#11161f; --card:#151b26; --card2:#1b2230;
+  --line:#232c3b; --txt:#e6ebf2; --muted:#8a94a6; --muted2:#5e6678;
+  --good:#16c784; --bad:#ea3943; --warn:#f0a020; --neutral:#7d8696;
+  --accent:#3b82f6; --accent2:#6366f1;
+  --good-bg:rgba(22,199,132,.12); --bad-bg:rgba(234,57,67,.12);
+  --warn-bg:rgba(240,160,32,.12); --neutral-bg:rgba(125,134,150,.10);
+  --shadow:0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.25);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:linear-gradient(180deg,#0b0e14,#0a0d12 60%); color:var(--txt);
+  font-family:'Inter',system-ui,-apple-system,'Segoe UI','Malgun Gothic',sans-serif;
+  font-size:14px; line-height:1.5; padding:0 22px 60px; max-width:1480px; margin:0 auto;
+}
+.mono,.ind-value,.histtable .mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
+h1{font-size:20px;margin:0;letter-spacing:-.3px}
+h2{font-size:18px;margin:0}
+h3{font-size:14px;margin:0}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.muted{color:var(--muted)}
+.good{color:var(--good)} .bad{color:var(--bad)} .warn{color:var(--warn)} .neutral{color:var(--neutral)}
+
+/* ── 상단바 ── */
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;
+  padding:18px 4px 14px;position:sticky;top:0;z-index:20;
+  background:linear-gradient(180deg,#0b0e14 70%,rgba(11,14,20,.0));backdrop-filter:blur(4px)}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{font-size:26px}
+.sub{color:var(--muted);font-size:12px;margin-top:2px}
+.actions{display:flex;align-items:center;gap:10px}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--txt);
+  padding:8px 14px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:500;transition:.15s}
+.btn:hover{border-color:var(--accent);background:var(--card2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:#2f6fe0}
+.btn.primary:disabled{opacity:.5;cursor:progress}
+.btn.ghost{background:transparent}
+.auto{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px;cursor:pointer}
+
+/* ── 소스 상태 ── */
+.healthstrip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 2px 16px;font-size:12px}
+.hbadge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:20px;
+  background:var(--card);border:1px solid var(--line);color:var(--muted)}
+.hbadge i{width:8px;height:8px;border-radius:50%;background:var(--neutral)}
+.hbadge small{color:var(--muted2)}
+.hbadge.ok i{background:var(--good)} .hbadge.ok{color:var(--txt)}
+.hbadge.partial i{background:var(--warn)}
+.hbadge.down i{background:var(--bad)} .hbadge.down{color:#f3a;border-color:rgba(234,57,67,.3)}
+.hbadge.idle i{background:var(--muted2)}
+.spacer{flex:1}
+.status-note{color:var(--muted);font-size:12px}
+
+/* ── 카드 공통 ── */
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;
+  box-shadow:var(--shadow);margin-bottom:18px}
+
+/* ── 브리핑 ── */
+.briefing{background:linear-gradient(135deg,#141b29,#11161f);border-color:#283246}
+.brief-head{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap}
+.badge.good{background:var(--good-bg);color:var(--good)}
+.badge.bad{background:var(--bad-bg);color:var(--bad)}
+.badge.warn{background:var(--warn-bg);color:var(--warn)}
+.badge.neutral{background:var(--neutral-bg);color:var(--neutral)}
+.brief-summary{font-size:15px;color:#cdd6e4;margin:6px 0 12px;font-weight:500}
+.brief-body.markdown{color:#c2cad8;font-size:13.5px}
+.markdown h2{font-size:14px;margin:16px 0 6px;color:#fff;border-left:3px solid var(--accent);padding-left:8px}
+.markdown h3{font-size:13px;margin:12px 0 4px;color:#dfe5ee}
+.markdown ul{margin:4px 0 10px;padding-left:20px}
+.markdown li{margin:3px 0}
+.markdown p{margin:6px 0}
+.markdown strong{color:#fff}
+.brief-meta{display:flex;gap:10px;align-items:center;margin-top:14px;padding-top:12px;
+  border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+
+/* ── 지표 그룹 ── */
+.group{margin:22px 0}
+.group-title{display:flex;align-items:center;gap:8px;margin-bottom:12px;color:#aeb8c8;
+  text-transform:none;font-weight:600;font-size:13px;letter-spacing:.2px}
+.group-title .count{background:var(--card2);color:var(--muted);font-size:11px;
+  padding:1px 7px;border-radius:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+.ind{position:relative;padding:14px 14px 8px;cursor:pointer;overflow:hidden;transition:.15s;margin-bottom:0}
+.ind:hover{border-color:var(--accent);transform:translateY(-1px)}
+.ind.stale{opacity:.5}
+.ind-top{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.ind-label{font-size:12.5px;color:var(--muted);font-weight:500}
+.ind-value{font-size:21px;font-weight:600;margin:4px 0 2px;letter-spacing:-.4px}
+.chg{font-size:12px;font-weight:700;white-space:nowrap}
+.chg.good{color:var(--good)} .chg.bad{color:var(--bad)} .chg.neutral{color:var(--muted)}
+.chg.neutral.pos{color:#9fb0c4} .chg.neutral.neg{color:#9fb0c4}
+.ind-foot{display:flex;align-items:center;gap:8px;font-size:11px;min-height:14px}
+.chgabs{color:var(--muted)} .chgabs.good{color:var(--good)} .chgabs.bad{color:var(--bad)}
+.note{color:var(--accent);cursor:help}
+.err{color:var(--bad);font-size:11px}
+.spark{display:block;width:100%;margin-top:6px;opacity:.9}
+
+/* tone 좌측 악센트 바 */
+.ind.good::before,.ind.bad::before,.ind.neutral::before{content:'';position:absolute;left:0;top:0;
+  bottom:0;width:3px;background:var(--neutral)}
+.ind.good::before{background:var(--good)} .ind.bad::before{background:var(--bad)}
+
+/* ── 뉴스/캘린더 ── */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.col{max-height:560px;overflow:auto}
+.news{list-style:none;margin:0;padding:0}
+.news li{padding:9px 0;border-bottom:1px solid var(--line)}
+.news li:last-child{border:0}
+.news a{color:#dbe3ee;font-size:13.5px;font-weight:500}
+.news a:hover{color:var(--accent)}
+.news-meta{font-size:11px;color:var(--muted2);margin-top:3px}
+.news-meta .src{color:var(--muted)}
+.cal{list-style:none;margin:0;padding:0}
+.cal li{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+.cal li:last-child{border:0}
+.cal-when{min-width:96px;font-size:11.5px;color:var(--muted);font-family:'IBM Plex Mono',monospace}
+.cal-title{display:block;font-size:13px;color:#dbe3ee;font-weight:500}
+.cal-nums{font-size:11px;color:var(--muted)}
+.cal li.impact-high .cal-when{color:var(--bad);font-weight:600}
+.cal li.impact-medium .cal-when{color:var(--warn)}
+
+/* ── 이력 테이블 ── */
+.histtable{width:100%;border-collapse:collapse;font-size:13px}
+.histtable th{text-align:left;color:var(--muted);font-weight:500;padding:8px 12px;border-bottom:1px solid var(--line)}
+.histtable td{padding:10px 12px;border-bottom:1px solid var(--line)}
+.histtable tbody tr{cursor:pointer;transition:.1s}
+.histtable tbody tr:hover{background:var(--card2)}
+.histtable .arrow{color:var(--muted);text-align:right}
+
+/* ── 빈 상태 ── */
+.empty{text-align:center;padding:80px 20px;color:var(--muted)}
+.spinner{width:38px;height:38px;border:3px solid var(--line);border-top-color:var(--accent);
+  border-radius:50%;margin:0 auto 18px;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── 모달 ── */
+.modal{position:fixed;inset:0;background:rgba(5,8,12,.78);display:flex;align-items:center;
+  justify-content:center;z-index:50;backdrop-filter:blur(3px)}
+.modal.hidden{display:none}
+.modal-box{background:var(--card);border:1px solid var(--line);border-radius:16px;
+  padding:20px;width:min(760px,92vw);box-shadow:var(--shadow)}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;font-size:15px;font-weight:600}
+.x{background:none;border:0;color:var(--muted);font-size:18px;cursor:pointer}
+.x:hover{color:var(--txt)}
+#modal-chart{max-height:380px}
+
+/* ── 푸터 ── */
+.foot{display:flex;justify-content:space-between;color:var(--muted2);font-size:11.5px;
+  padding-top:18px;margin-top:24px;border-top:1px solid var(--line)}
+.pill{font-size:11px;padding:2px 8px;border-radius:10px;margin-left:6px}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+
+@media(max-width:760px){
+  .cols{grid-template-columns:1fr}
+  body{padding:0 12px 40px}
+  .topbar{flex-direction:column;align-items:flex-start}
+}

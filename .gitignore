@@ -1,0 +1,24 @@
+# 가상환경 / 빌드
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# 로컬 데이터·설정·로그 (비밀키 포함 — 절대 커밋 금지)
+data/
+logs/
+.env
+*.db
+*.db-wal
+*.db-shm
+
+# 검증 산출물
+verify_report.json
+
+# 에디터/IDE
+.idea/
+.vscode/
+
+# OS
+Thumbs.db
+.DS_Store

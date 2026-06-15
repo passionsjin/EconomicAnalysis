@@ -1,0 +1,8 @@
+# 거시경제 분석 수집기 + 웹 대시보드 — 의존성 (로컬 구동)
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+apscheduler==3.11.0
+jinja2==3.1.5
+requests==2.32.3
+feedparser==6.0.11
+python-dotenv==1.0.1

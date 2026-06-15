@@ -89,6 +89,20 @@ CREATE TABLE IF NOT EXISTS briefings (
     error       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_brief_snap ON briefings(snapshot_id);
+
+-- 소스 장애/복구 이벤트 로그 (연속 실패 에스컬레이션·알림용)
+CREATE TABLE IF NOT EXISTS source_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts_utc      TEXT NOT NULL,
+    source      TEXT NOT NULL,
+    kind        TEXT NOT NULL,        -- 'down' | 'recovered'
+    detail      TEXT,
+    consecutive INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_srcevt_ts ON source_events(ts_utc DESC);
+
+-- 차트 조회 가속: (key, date) 복합 인덱스
+CREATE INDEX IF NOT EXISTS idx_hist_key_date ON history(key, date DESC);
 """
 
 

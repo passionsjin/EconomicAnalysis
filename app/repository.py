@@ -268,3 +268,70 @@ def upcoming_calendar(limit: int = 30) -> list[dict]:
             (limit,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def get_series_batch(keys: list[str], points: int = 60) -> dict[str, list[dict]]:
+    """여러 키의 시계열을 한 번에(스파크라인 N개 동시요청 → 1요청)."""
+    points = max(1, min(points, 2000))
+    out: dict[str, list[dict]] = {}
+    if not keys:
+        return out
+    with get_con() as con:
+        for key in keys:
+            rows = con.execute(
+                "SELECT date, value FROM history WHERE key=? ORDER BY date DESC LIMIT ?",
+                (key, points),
+            ).fetchall()
+            out[key] = [{"date": r["date"], "value": r["value"]} for r in reversed(rows)]
+    return out
+
+
+def prior_finished_snapshot(before_id: int) -> Optional[dict]:
+    """주어진 스냅샷 직전의 완료 스냅샷(직전 브리핑 delta 계산용)."""
+    with get_con() as con:
+        r = con.execute(
+            "SELECT * FROM snapshots WHERE finished_utc IS NOT NULL AND id < ? "
+            "ORDER BY id DESC LIMIT 1",
+            (before_id,),
+        ).fetchone()
+        return dict(r) if r else None
+
+
+# ── 소스 장애 이벤트 ──────────────────────────────────────────
+
+def record_source_event(ts_utc: str, source: str, kind: str, detail: str, consecutive: int) -> None:
+    with get_con() as con:
+        con.execute(
+            "INSERT INTO source_events (ts_utc, source, kind, detail, consecutive) VALUES (?,?,?,?,?)",
+            (ts_utc, source, kind, (detail or "")[:300], consecutive),
+        )
+
+
+def recent_source_events(limit: int = 20) -> list[dict]:
+    with get_con() as con:
+        rows = con.execute(
+            "SELECT * FROM source_events ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def source_fail_streak(source: str, lookback: int = 48) -> int:
+    """완료 스냅샷 기준, 가장 최근부터 이 소스가 연속 실패(ok=0)한 횟수.
+
+    현재 스냅샷의 health 저장 '전에' 호출하면 직전까지의 연속 실패수를 준다.
+    """
+    with get_con() as con:
+        rows = con.execute(
+            """SELECT sh.ok FROM source_health sh
+               JOIN snapshots s ON s.id = sh.snapshot_id
+               WHERE sh.source=? AND s.finished_utc IS NOT NULL
+               ORDER BY s.id DESC LIMIT ?""",
+            (source, lookback),
+        ).fetchall()
+    streak = 0
+    for r in rows:
+        if r["ok"] == 0:
+            streak += 1
+        else:
+            break
+    return streak

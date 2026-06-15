@@ -12,6 +12,7 @@ import os
 import re
 import shutil
 import subprocess
+from datetime import datetime, timezone
 from typing import Optional
 
 from ..config import INDICATOR_BY_KEY, CATEGORIES, settings, BASE_DIR
@@ -91,17 +92,81 @@ def _news_block(news: list[NewsItem], limit: int = 12) -> str:
     return "\n".join(f"  - [{_san(n.source, 40)}] {_san(n.title)}" for n in news[:limit])
 
 
-def _calendar_block(events: list[CalendarEvent], limit: int = 10) -> str:
-    hi = [e for e in events if (e.impact or "").lower() == "high"][:limit]
+def _hours_until(date_iso: Optional[str], now: datetime) -> Optional[float]:
+    if not date_iso:
+        return None
+    try:
+        dt = datetime.fromisoformat(date_iso.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return (dt - now).total_seconds() / 3600.0
+    except ValueError:
+        return None
+
+
+def _calendar_block(events: list[CalendarEvent], limit: int = 12,
+                    now_utc: Optional[datetime] = None) -> str:
+    hi = [e for e in events if (e.impact or "").lower() == "high"]
     if not hi:
         return "(예정된 주요 발표 없음)"
-    out = []
-    for e in hi:
+    now = now_utc or datetime.now(timezone.utc)
+
+    def fmt(e: CalendarEvent, mark: str = "") -> str:
         when = (e.date or "")[:16].replace("T", " ")
         fc = f" 예상 {_san(e.forecast, 30)}" if e.forecast else ""
         pv = f" 이전 {_san(e.previous, 30)}" if e.previous else ""
-        out.append(f"  - {when}Z [{_san(e.country, 20)}] {_san(e.title)}{fc}{pv}")
+        ac = f" 실제 {_san(e.actual, 30)}" if e.actual else ""
+        return f"  - {mark}{when}Z [{_san(e.country, 20)}] {_san(e.title)}{fc}{pv}{ac}"
+
+    imminent, later = [], []
+    for e in hi:
+        h = _hours_until(e.date, now)
+        (imminent if (h is not None and -3 <= h <= 12) else later).append((h, e))
+
+    out: list[str] = []
+    if imminent:
+        out.append("[임박/방금 발표 (±12h) — 우선 주목]")
+        for _h, e in sorted(imminent, key=lambda x: (x[0] is None, x[0])):
+            out.append(fmt(e, "** "))
+    if later:
+        out.append("[예정]")
+        for _h, e in sorted(later, key=lambda x: (x[0] is None, x[0]))[:limit]:
+            out.append(fmt(e))
     return "\n".join(out)
+
+
+def _regime_block(regime: dict) -> str:
+    r = (regime or {}).get("regime") or {}
+    win = regime.get("window")
+    drivers = ", ".join(r.get("drivers") or []) or "특이 동인 없음"
+    lines = [f"- 판정: {r.get('label', '—')} (최근 {win}일; 동인: {drivers})"]
+    labels = regime.get("labels") or []
+    m = regime.get("matrix") or []
+    pairs = []
+    for i in range(len(labels)):
+        for j in range(i + 1, len(labels)):
+            c = m[i][j] if i < len(m) and j < len(m[i]) else None
+            if c is not None and abs(c) >= 0.6:
+                pairs.append((abs(c), f"{labels[i]}↔{labels[j]} {c:+.2f}"))
+    pairs.sort(reverse=True)
+    if pairs:
+        lines.append(f"- 강한 상관({win}일): " + ", ".join(p[1] for p in pairs[:6]))
+    return "\n".join(lines)
+
+
+def _prior_block(prior: dict) -> str:
+    when = (prior.get("prev_ts") or "")[:16].replace("T", " ")
+    head = [f"- 직전({when}Z) 심리: {prior.get('prev_sentiment') or '—'} / "
+            f"\"{_san(prior.get('prev_headline') or '', 60)}\""]
+    rows = []
+    for d in prior.get("deltas", []):
+        if d.get("unit") == "%":
+            chg = f"{d['diff']:+.2f}%p"
+        else:
+            base = d.get("prev") or 0
+            chg = f"{(d['diff'] / abs(base) * 100):+.2f}%" if base else f"{d['diff']:+.2f}"
+        rows.append(f"  - {d['label']}: {d['cur']:,.2f} ({chg} vs 직전)")
+    return "\n".join(head + rows)
 
 
 SYSTEM_INSTRUCTION = """너는 시니어 거시경제 분석가다. 아래 실시간 데이터 스냅샷을 바탕으로 한국어 거시 시황 브리핑을 작성한다.
@@ -123,17 +188,23 @@ JSON 스키마:
 
 
 def build_prompt(quotes: dict[str, Quote], news: list[NewsItem],
-                 events: list[CalendarEvent], now_kst: str) -> str:
-    return (
-        f"{SYSTEM_INSTRUCTION}\n\n"
-        f"<DATA>\n"
-        f"=== 데이터 스냅샷 (기준: {now_kst} KST) ===\n\n"
-        f"## 시장·거시 지표 (괄호=전일대비)\n{_data_block(quotes)}\n\n"
-        f"## 주요 뉴스 헤드라인\n{_news_block(news)}\n\n"
-        f"## 예정된 주요 경제지표 발표 (UTC)\n{_calendar_block(events)}\n"
-        f"</DATA>\n\n"
-        f"위 <DATA> 의 데이터로 JSON 브리핑을 작성하라."
-    )
+                 events: list[CalendarEvent], now_kst: str,
+                 prior: Optional[dict] = None, regime: Optional[dict] = None,
+                 now_utc: Optional[datetime] = None) -> str:
+    parts = [SYSTEM_INSTRUCTION, "", "<DATA>",
+             f"=== 데이터 스냅샷 (기준: {now_kst} KST) ===", ""]
+    if regime:
+        parts.append(f"## 시장 레짐(자동판정)\n{_regime_block(regime)}\n")
+    if prior and prior.get("deltas"):
+        parts.append(f"## 직전 브리핑 대비 변화\n{_prior_block(prior)}\n")
+    parts.append(f"## 시장·거시 지표 (괄호=직전 관측 대비)\n{_data_block(quotes)}\n")
+    parts.append(f"## 주요 뉴스 헤드라인\n{_news_block(news)}\n")
+    parts.append(f"## 예정된 주요 경제지표 발표 (UTC)\n{_calendar_block(events, now_utc=now_utc)}")
+    parts.append("</DATA>")
+    parts.append("")
+    parts.append("위 <DATA> 의 데이터로 JSON 브리핑을 작성하라. "
+                 "직전 대비 의미있는 변화·레짐 전환·임박(±12h) 발표가 있으면 반드시 본문에서 짚어라.")
+    return "\n".join(parts)
 
 
 # ─────────────────────────── 파싱 ───────────────────────────
@@ -232,33 +303,8 @@ def _run_cli(cmd: list[str], prompt: str, timeout: int) -> tuple[int, str, str]:
     return proc.returncode, out.decode("utf-8", "replace"), err.decode("utf-8", "replace")
 
 
-def generate(quotes: dict[str, Quote], news: list[NewsItem],
-             events: list[CalendarEvent], now_kst: str) -> Briefing:
-    if not settings.enable_llm:
-        return Briefing(ok=False, error="LLM 브리핑 비활성(ENABLE_LLM_BRIEFING=false)")
-
-    exe = resolve_claude()
-    if not exe:
-        return Briefing(ok=False, error="claude CLI 를 찾을 수 없음 (CLAUDE_BIN 설정 또는 PATH 확인)")
-
-    prompt = build_prompt(quotes, news, events, now_kst)
-    cmd = _command(exe)
-
-    try:
-        rc, stdout, stderr = _run_cli(cmd, prompt, settings.llm_timeout)
-    except subprocess.TimeoutExpired:
-        return Briefing(ok=False, error=f"claude -p 타임아웃({settings.llm_timeout}s) — 프로세스 종료함")
-    except Exception as exc:  # noqa: BLE001
-        return Briefing(ok=False, error=f"claude 실행 실패: {type(exc).__name__}: {exc}")
-
-    if rc != 0:
-        return Briefing(ok=False, error=f"claude 종료코드 {rc}: {(stderr or stdout or '')[-400:]}")
-
-    raw = (stdout or "").strip()
-    if not raw:
-        return Briefing(ok=False, error="claude 빈 응답")
-
-    # --output-format json → {"result": "<assistant text>", "is_error": ..., ...}
+def _parse_response(raw: str) -> Briefing:
+    """claude -p 출력(엔벨로프)을 Briefing 으로 파싱. ok=False 면 재시도 가치 있음."""
     result_text = raw
     model_used = settings.claude_model or "Claude Code"
     try:
@@ -274,28 +320,65 @@ def generate(quotes: dict[str, Quote], news: list[NewsItem],
 
     try:
         obj = _extract_json_obj(result_text)
-    except Exception:  # noqa: BLE001 — 어떤 비정상 응답에도 generate 밖으로 예외를 흘리지 않음
+    except Exception:  # noqa: BLE001
         obj = None
 
     if not obj:
-        # JSON 파싱 실패 시: 원문을 본문으로라도 보존
+        # JSON 파싱 실패라도 원문을 본문으로 보존(ok=True → 재시도 안 함)
         return Briefing(
-            ok=True, model=model_used,
-            headline="시황 브리핑",
-            summary=result_text[:200],
-            body_md=result_text[:6000],
-            sentiment="neutral",
-            error="JSON 파싱 실패(원문 표시)",
+            ok=True, model=model_used, headline="시황 브리핑",
+            summary=result_text[:200], body_md=result_text[:6000],
+            sentiment="neutral", error="JSON 파싱 실패(원문 표시)",
         )
 
     sentiment = str(obj.get("sentiment", "neutral")).strip().lower()
     if sentiment not in _VALID_SENTIMENT:
         sentiment = "neutral"
     return Briefing(
-        ok=True,
-        model=model_used,
+        ok=True, model=model_used,
         headline=str(obj.get("headline", ""))[:120],
         summary=str(obj.get("summary", "")),
         body_md=str(obj.get("body_md", "")),
         sentiment=sentiment,
     )
+
+
+def generate(quotes: dict[str, Quote], news: list[NewsItem],
+             events: list[CalendarEvent], now_kst: str,
+             prior: Optional[dict] = None, regime: Optional[dict] = None,
+             now_utc: Optional[datetime] = None) -> Briefing:
+    if not settings.enable_llm:
+        return Briefing(ok=False, error="LLM 브리핑 비활성(ENABLE_LLM_BRIEFING=false)")
+
+    exe = resolve_claude()
+    if not exe:
+        return Briefing(ok=False, error="claude CLI 를 찾을 수 없음 (CLAUDE_BIN 설정 또는 PATH 확인)")
+
+    prompt = build_prompt(quotes, news, events, now_kst, prior=prior,
+                          regime=regime, now_utc=now_utc)
+    cmd = _command(exe)
+
+    # 최대 2회: 타임아웃/실행오류/빈응답/엔벨로프오류 시 1회 재시도(LLM 불안정 대비)
+    last_err = ""
+    for attempt in (1, 2):
+        try:
+            rc, stdout, stderr = _run_cli(cmd, prompt, settings.llm_timeout)
+        except subprocess.TimeoutExpired:
+            last_err = f"타임아웃({settings.llm_timeout}s)"
+            continue
+        except Exception as exc:  # noqa: BLE001
+            last_err = f"실행 실패: {type(exc).__name__}: {exc}"
+            continue
+        if rc != 0:
+            last_err = f"종료코드 {rc}: {(stderr or stdout or '')[-300:]}"
+            continue
+        raw = (stdout or "").strip()
+        if not raw:
+            last_err = "빈 응답"
+            continue
+        brief = _parse_response(raw)
+        if brief.ok:
+            return brief
+        last_err = brief.error or "파싱 실패"
+
+    return Briefing(ok=False, error=f"claude -p 실패(2회 시도): {last_err}")

@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from . import presenter
 from . import pipeline
 from . import repository as repo
+from .analysis import regime as regime_mod
 from .config import CATEGORIES, settings
 from .db import init_db
 from .logging_setup import logger, setup_logging
@@ -43,6 +44,7 @@ def dashboard(request: Request):
         "request": request,
         "d": data,
         "status": pipeline.get_status(),
+        "sched": pipeline.scheduler_health(),
         "categories": CATEGORIES,
         "title": "거시경제 시황 대시보드",
     })
@@ -57,6 +59,7 @@ def report(request: Request, snapshot_id: int):
         "request": request,
         "d": data,
         "status": pipeline.get_status(),
+        "sched": pipeline.scheduler_health(),
         "categories": CATEGORIES,
         "title": f"브리핑 #{snapshot_id}",
         "historical": True,
@@ -85,6 +88,24 @@ def api_series(key: str, points: int = 0, days: int = 0):
     return {"key": key, "series": repo.get_series(key, n)}
 
 
+@app.get("/api/series-batch")
+def api_series_batch(keys: str, points: int = 60):
+    """여러 키 시계열을 한 번에. keys=콤마구분. 스파크라인 N개 동시요청 방지."""
+    klist = [k.strip() for k in keys.split(",") if k.strip()][:60]
+    return {"points": points, "series": repo.get_series_batch(klist, points)}
+
+
+@app.get("/api/correlations")
+def api_correlations(window: int = 30):
+    window = max(10, min(window, 120))
+    return regime_mod.snapshot(window)
+
+
+@app.get("/api/alerts")
+def api_alerts(limit: int = 20):
+    return {"events": repo.recent_source_events(limit)}
+
+
 @app.get("/api/snapshots")
 def api_snapshots(limit: int = 50):
     return {"snapshots": repo.list_snapshots(limit)}
@@ -95,6 +116,7 @@ def api_status():
     snap = repo.latest_snapshot()
     return {
         "pipeline": pipeline.get_status(),
+        "scheduler": pipeline.scheduler_health(),
         "latest_snapshot_id": snap["id"] if snap else None,
         "latest_finished": snap["finished_utc"] if snap else None,
     }

@@ -103,6 +103,41 @@ async function drawSpark(canvas) {
   });
 }
 
+/* ── 자산간 상관 히트맵 ── */
+function corrColor(c) {
+  if (c === null || c === undefined) return "transparent";
+  const a = Math.min(Math.abs(c), 1);
+  const alpha = (0.10 + 0.62 * a).toFixed(2);
+  return c >= 0 ? `rgba(22,199,132,${alpha})` : `rgba(234,57,67,${alpha})`;
+}
+async function renderCorrelations() {
+  const el = document.getElementById("corr-heatmap");
+  if (!el) return;
+  let j;
+  try {
+    j = await fetch("/api/correlations?window=30").then((r) => r.json());
+  } catch (e) { el.textContent = "상관 데이터를 불러오지 못했습니다."; return; }
+  const labels = j.labels || [];
+  const m = j.matrix || [];
+  if (!labels.length) { el.textContent = "상관 계산에 필요한 이력이 부족합니다."; return; }
+  let html = '<table class="corr"><thead><tr><th></th>';
+  for (const l of labels) html += `<th>${l}</th>`;
+  html += "</tr></thead><tbody>";
+  for (let i = 0; i < labels.length; i++) {
+    html += `<tr><th>${labels[i]}</th>`;
+    for (let k = 0; k < labels.length; k++) {
+      const c = (m[i] || [])[k];
+      const txt = (c === null || c === undefined) ? "–" : c.toFixed(2);
+      const bg = corrColor(c);
+      html += `<td style="background:${bg}" title="${labels[i]} ↔ ${labels[k]}: ${txt}">${txt}</td>`;
+    }
+    html += "</tr>";
+  }
+  html += "</tbody></table>";
+  el.classList.remove("muted");
+  el.innerHTML = html;
+}
+
 /* ── 모달 큰 차트 ── */
 let _modalChart = null;
 async function openChart(key, label, unit) {
@@ -190,6 +225,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(applyTimes, 60000); // 상대시간 갱신
   const sparks = document.querySelectorAll("canvas.spark");
   if (sparks.length) pool([...sparks], drawSpark, 6);
+  renderCorrelations();
   autoRefreshLoop();
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 });

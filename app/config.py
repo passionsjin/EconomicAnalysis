@@ -117,6 +117,10 @@ class Indicator:
     up_is_good: Optional[bool] = None
     # FRED 변환: None | "yoy"(전년동월대비 %) — 지수 시리즈를 등락률로
     transform: Optional[str] = None
+    # 데이터 빈도: "D"(일)/"W"(주)/"M"(월) — 신선도 경고·변화기준 라벨(전일/전주/전월)에 사용
+    freq: str = "D"
+    # 파생지표 계산식(source="derived"): (lhs_key, op, rhs_key). 예) 실질금리 = 명목 - 기대인플레
+    derived: Optional[tuple] = None
     # ECOS 전용 메타
     ecos_item: str = ""            # 통계항목코드(ITEM_CODE1)
     ecos_cycle: str = "M"          # 주기 D/M/Q/A
@@ -167,21 +171,27 @@ INDICATORS: list[Indicator] = [
 
     # ── 미국 거시 (FRED 시리즈; 키 없으면 CSV 폴백, 도달 불가 시 자동 스킵) ──
     Indicator("us_fedfunds", "미 기준금리(실효)", "us_macro", "fred", "DFF",    unit="%", decimals=2),
-    Indicator("us_cpi_yoy",  "미 CPI 전년比",     "us_macro", "fred", "CPIAUCSL", unit="%", decimals=2, transform="yoy", up_is_good=False),
-    Indicator("us_core_pce", "미 근원 PCE 전년比","us_macro", "fred", "PCEPILFE", unit="%", decimals=2, transform="yoy", up_is_good=False),
-    Indicator("us_unrate",   "미 실업률",         "us_macro", "fred", "UNRATE",  unit="%", decimals=1, up_is_good=False),
+    Indicator("us_cpi_yoy",  "미 CPI 전년比",     "us_macro", "fred", "CPIAUCSL", unit="%", decimals=2, transform="yoy", up_is_good=False, freq="M"),
+    Indicator("us_core_pce", "미 근원 PCE 전년比","us_macro", "fred", "PCEPILFE", unit="%", decimals=2, transform="yoy", up_is_good=False, freq="M"),
+    Indicator("us_unrate",   "미 실업률",         "us_macro", "fred", "UNRATE",  unit="%", decimals=1, up_is_good=False, freq="M"),
     Indicator("us_10y2y",    "미 장단기차(10Y-2Y)","us_macro","fred", "T10Y2Y",  unit="%", decimals=2,
               note="음수면 장단기금리 역전(침체 신호)"),
     Indicator("us_hy_spread","미 하이일드 스프레드","us_macro","fred", "BAMLH0A0HYM2", unit="%", decimals=2, up_is_good=False,
               note="신용위험·경기불안 척도"),
-    Indicator("us_claims",   "미 신규실업수당청구","us_macro","fred", "ICSA",   unit="건", decimals=0, up_is_good=False),
+    Indicator("us_claims",   "미 신규실업수당청구","us_macro","fred", "ICSA",   unit="건", decimals=0, up_is_good=False, freq="W"),
+    Indicator("us_be10y",    "미 10년 기대인플레","us_macro","fred", "T10YIE",  unit="%", decimals=2, up_is_good=False,
+              note="10년 BEI(손익분기 인플레이션)"),
+    # 파생: 실질 10년금리 = 명목 10년(^TNX) − 10년 기대인플레(T10YIE)
+    Indicator("us_real10y",  "미 10년 실질금리",  "us_macro", "derived", "", unit="%", decimals=2,
+              derived=("us10y", "-", "us_be10y"),
+              note="명목 10년 − 10년 기대인플레. 실제 통화긴축 강도"),
 
     # ── 한국 거시 (ECOS; 키 있을 때만 활성) ──
     Indicator("kr_base_rate", "한국 기준금리", "kr_macro", "ecos", "722Y001",
-              unit="%", decimals=2, ecos_item="0101000", ecos_cycle="M"),
+              unit="%", decimals=2, ecos_item="0101000", ecos_cycle="M", freq="M"),
     Indicator("kr_cpi_yoy",   "한국 CPI 전년比", "kr_macro", "ecos", "901Y009",
               unit="%", decimals=2, ecos_item="0", ecos_cycle="M", up_is_good=False,
-              transform="yoy"),
+              transform="yoy", freq="M"),
 ]
 
 INDICATOR_BY_KEY: dict[str, Indicator] = {ind.key: ind for ind in INDICATORS}

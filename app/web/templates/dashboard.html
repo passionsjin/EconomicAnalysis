@@ -36,9 +36,19 @@
       {% else %}<small>{{ h.fetched }}</small>{% endif %}
     </span>
   {% endfor %}
+  {% if d.regime %}
+    <span class="hbadge regime {{ d.regime.tone }}" title="{{ d.regime.drivers|join(', ') }}">레짐: {{ d.regime.label }}</span>
+  {% endif %}
   <span class="spacer"></span>
   <span class="status-note" id="status-note"></span>
 </div>
+
+{% if sched and sched.misfire_suspected %}
+<div class="banner warn">⚠ 스케줄러 점검 필요 — {% if not sched.alive %}스케줄러 스레드 정지됨{% else %}마지막 수집 {{ sched.minutes_since_collection|round|int }}분 전 (매시 수집 지연 의심){% endif %}</div>
+{% endif %}
+{% for h in d.health if h.state == 'down' %}
+<div class="banner bad">🔴 {{ h.label }} 수집 실패 — {{ h.message }}</div>
+{% endfor %}
 
 {% if d.empty %}
   <section class="empty">
@@ -55,6 +65,7 @@
     <div class="brief-head">
       <span class="badge {{ s[1] }}">{{ s[0] }}</span>
       <h2>{{ d.briefing.headline or '시황 브리핑' }}</h2>
+      {% if d.briefing_cached %}<span class="pill warn" title="현재 수집의 브리핑 생성이 실패해 직전 성공 브리핑을 표시 중">캐시 · 직전</span>{% endif %}
     </div>
     {% if d.briefing.summary %}<p class="brief-summary">{{ d.briefing.summary }}</p>{% endif %}
     <div class="brief-body markdown" id="brief-body"></div>
@@ -88,7 +99,9 @@
       <div class="ind-value">{{ it.value_fmt }}</div>
       <div class="ind-foot">
         {% if it.ok %}
+          {% if it.has_change %}<span class="basis" title="변화 기준">{{ it.basis }}</span>{% endif %}
           {% if it.change_sub_fmt %}<span class="chgabs {{ it.tone }}">{{ it.change_sub_fmt }}</span>{% endif %}
+          {% if it.stale %}<span class="agewarn" title="데이터가 오래됨(신선도 경고)">⏱{{ it.age_days }}일전</span>{% endif %}
           {% if it.note %}<span class="note" title="{{ it.note }}">ⓘ</span>{% endif %}
         {% else %}
           <span class="err" title="{{ it.error }}">수집 실패</span>
@@ -100,6 +113,17 @@
   </div>
 </section>
 {% endfor %}
+
+{# ───────── 상관/레짐 히트맵 ───────── #}
+{% if not historical %}
+<section class="card">
+  <h3 class="group-title">🔗 자산간 상관 (최근 30일 일간수익률)
+    {% if d.regime %}<span class="badge {{ d.regime.tone }}" title="{{ d.regime.drivers|join(', ') }}">{{ d.regime.label }}</span>{% endif %}
+  </h3>
+  <div id="corr-heatmap" class="corr-wrap muted">상관 행렬 로딩 중…</div>
+  <div class="corr-legend muted">상관 +1(동조, 초록) ↔ −1(역행, 빨강). 레짐 동인: {% if d.regime %}{{ d.regime.drivers|join(' · ') or '특이사항 없음' }}{% endif %}</div>
+</section>
+{% endif %}
 
 {# ───────── 뉴스 / 캘린더 ───────── #}
 <div class="cols">

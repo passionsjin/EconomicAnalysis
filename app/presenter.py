@@ -1,11 +1,32 @@
 """DB 행 → 화면/ API 용 뷰 모델 조립. HTML 라우트와 JSON API 가 공유."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Optional
 
 from . import repository as repo
+from .analysis import regime as regime_mod
 from .collectors.base import ALL_COLLECTORS
 from .config import CATEGORIES, INDICATORS, INDICATOR_BY_KEY, Indicator
+
+# 빈도별 신선도 임계(시간) — 초과 시 'stale' 경고. 월별은 발표주기 고려해 넉넉히.
+_STALE_HOURS = {"D": 24 * 3, "W": 24 * 10, "M": 24 * 55}
+# 변화 기준 라벨(직전 관측이 며칠/주/월 전인지)
+_BASIS_LABEL = {"D": "전일", "W": "전주", "M": "전월"}
+
+
+def _staleness(as_of: Optional[str], freq: str) -> Optional[dict]:
+    if not as_of:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(as_of).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    age_h = (datetime.now(timezone.utc) - dt).total_seconds() / 3600.0
+    return {"stale": age_h > _STALE_HOURS.get(freq, 72),
+            "age_days": int(age_h // 24), "age_hours": round(age_h, 1)}
 
 
 def fmt_value(ind: Indicator, value: Optional[float]) -> str:
@@ -55,6 +76,7 @@ def _indicator_view(ind: Indicator, obs: dict) -> dict:
         change_main_fmt = f"{change_pct:+.2f}%" if change_pct is not None else "—"
         change_sub_fmt = f"{change:+,.{ind.decimals}f}" if change is not None else ""
 
+    st = _staleness(row.get("as_of"), ind.freq) if ok else None
     return {
         "key": ind.key,
         "label": ind.label,
@@ -69,9 +91,12 @@ def _indicator_view(ind: Indicator, obs: dict) -> dict:
         "has_change": has_change,
         "change_main_fmt": change_main_fmt,   # 주 표시(%p 또는 상대%)
         "change_sub_fmt": change_sub_fmt,     # 보조 표시(절대 변화; % 지표는 생략)
+        "basis": _BASIS_LABEL.get(ind.freq, "전일"),  # 변화 기준(전일/전주/전월)
         "sign": ("pos" if (delta or 0) > 0 else "neg" if (delta or 0) < 0 else "zero"),
         "tone": _tone(ind, delta),
         "as_of": row.get("as_of"),
+        "stale": bool(st and st["stale"]),
+        "age_days": st["age_days"] if st else None,
         "error": row.get("error"),
     }
 
@@ -115,15 +140,44 @@ def health_view(health_rows: list[dict]) -> list[dict]:
     return out
 
 
+def _recent_alerts(limit: int = 6) -> list[dict]:
+    out = []
+    for e in repo.recent_source_events(limit):
+        out.append({
+            "source": e["source"], "label": _source_label(e["source"]),
+            "kind": e["kind"], "detail": e.get("detail", ""),
+            "consecutive": e.get("consecutive", 0), "ts_utc": e.get("ts_utc"),
+        })
+    return out
+
+
 def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
     snap = repo.get_snapshot(snapshot_id) if snapshot_id else repo.latest_snapshot()
     if not snap:
         return {"empty": True, "groups": [], "health": [], "news": [],
-                "calendar": [], "briefing": None, "snapshot": None}
+                "calendar": [], "briefing": None, "briefing_cached": False,
+                "snapshot": None, "regime": None, "alerts": []}
 
     sid = snap["id"]
     obs = repo.get_observations(sid)
-    briefing = repo.get_briefing_for_snapshot(sid) or repo.latest_briefing()
+
+    # 브리핑 캐시 폴백: 현재 스냅샷 브리핑이 없거나 실패면 최근 성공 브리핑 표시
+    cur_brief = repo.get_briefing_for_snapshot(sid)
+    briefing_cached = False
+    if cur_brief and cur_brief.get("ok"):
+        briefing = cur_brief
+    else:
+        fb = repo.latest_briefing()
+        if fb and (not cur_brief or fb.get("id") != cur_brief.get("id")):
+            briefing, briefing_cached = fb, True
+        else:
+            briefing = cur_brief
+
+    try:
+        regime = regime_mod.detect_regime(20)
+    except Exception:  # noqa: BLE001
+        regime = None
+
     return {
         "empty": False,
         "snapshot": snap,
@@ -132,4 +186,7 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
         "news": repo.recent_news(30),
         "calendar": repo.upcoming_calendar(30),
         "briefing": briefing,
+        "briefing_cached": briefing_cached,
+        "regime": regime,
+        "alerts": _recent_alerts(),
     }

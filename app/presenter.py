@@ -79,8 +79,9 @@ def _indicator_view(ind: Indicator, obs: dict) -> dict:
         change_sub_fmt = f"{change:+,.{ind.decimals}f}" if change is not None else ""
 
     st = _staleness(row.get("as_of"), ind.freq) if ok else None
-    enr = stats_mod.enrich(ind.key, value, ind.freq) if ok else {"ctx": None, "momentum": None}
-    ctx, mom = enr["ctx"], enr["momentum"]
+    enr = (stats_mod.enrich(ind.key, value, ind.freq, unit=ind.unit) if ok
+           else {"ctx": None, "momentum": None, "risk": None})
+    ctx, mom, risk = enr["ctx"], enr["momentum"], enr.get("risk")
     return {
         "key": ind.key,
         "label": ind.label,
@@ -109,6 +110,13 @@ def _indicator_view(ind: Indicator, obs: dict) -> dict:
         "zscore": ctx["zscore"] if ctx else None,
         "anomaly": bool(ctx and ctx["anomaly"]),             # |z|≥3 통계적 이상치
         "momentum": mom,                                     # {w1,m1,m3,ytd} (일별만)
+        # 리스크 지표(일별 가격형만): 실현변동성·최대낙폭·52주 고저거리
+        "rvol": risk.get("rvol") if risk else None,
+        "mdd": risk.get("mdd") if risk else None,
+        "dist_high": risk.get("dist_high") if risk else None,
+        "dist_low": risk.get("dist_low") if risk else None,
+        "hi52": risk.get("hi") if risk else None,
+        "lo52": risk.get("lo") if risk else None,
         "error": row.get("error"),
     }
 

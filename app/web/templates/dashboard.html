@@ -124,6 +124,13 @@
         <span style="width:{{ it.percentile }}%"></span><em>{{ it.percentile }}%ile</em>
       </div>
       {% endif %}
+      {% if it.ok and (it.dist_high is not none or it.rvol is not none) %}
+      <div class="riskrow" title="52주 고점 {{ it.hi52|round(2) }} · 저점 {{ it.lo52|round(2) }}{% if it.mdd is not none %} · 최대낙폭 {{ it.mdd }}%{% endif %}{% if it.rvol is not none %} · 실현변동성(연율·30일) {{ it.rvol }}%{% endif %}">
+        {% if it.dist_high is not none %}<span class="rk">고점比 {{ '%+.0f'|format(it.dist_high) }}%</span>{% endif %}
+        {% if it.rvol is not none %}<span class="rk">σ{{ it.rvol }}%</span>{% endif %}
+        {% if it.mdd is not none %}<span class="rk">MDD {{ '%.0f'|format(it.mdd) }}%</span>{% endif %}
+      </div>
+      {% endif %}
       <canvas class="spark" data-key="{{ it.key }}" data-tone="{{ it.tone }}" height="34"></canvas>
     </div>
     {% endfor %}

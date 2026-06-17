@@ -18,7 +18,7 @@ from typing import Optional
 from ..config import (INDICATOR_BY_KEY, CATEGORIES, settings, BASE_DIR,
                       priority_of, source_tier)
 from ..models import Briefing, CalendarEvent, NewsItem, Quote
-from .stats import percentile_rank, zscore, _momentum_from, stat_window
+from .stats import percentile_rank, zscore, _momentum_from, stat_window, risk_metrics
 
 _VALID_SENTIMENT = {"risk-on", "risk-off", "neutral", "mixed"}
 _CTRL = re.compile(r"[\r\n\t\x00-\x1f]")
@@ -83,6 +83,13 @@ def _enrich_tag(ind, q: Quote) -> str:
                 bits.append(f"1M {m['m1']:+.1f}%")
             if m.get("ytd") is not None:
                 bits.append(f"YTD {m['ytd']:+.1f}%")
+    if ind.freq == "D" and ind.unit != "%":      # 가격형: 52주 고점대비·실현변동성
+        rk = risk_metrics([(d, v) for d, v in q.history if v is not None])
+        if rk:
+            if rk.get("dist_high") is not None:
+                bits.append(f"고점比 {rk['dist_high']:+.0f}%")
+            if rk.get("rvol") is not None:
+                bits.append(f"σ{rk['rvol']:.0f}%")
     z = zscore(q.value, hv[-win:])
     if z is not None and abs(z) >= 3:
         bits.append("**이상치**")
@@ -254,7 +261,7 @@ def build_prompt(quotes: dict[str, Quote], news: list[NewsItem],
         parts.append(f"## 시장 레짐(자동판정)\n{_regime_block(regime)}\n")
     if prior and prior.get("deltas"):
         parts.append(f"## 직전 브리핑 대비 변화\n{_prior_block(prior)}\n")
-    parts.append(f"## 시장·거시 지표 (괄호=직전 관측 대비; [%ile=기간내 백분위(일별≈최근5년·월별≈최근20년), 1M/YTD=모멘텀, 이상치])\n{_data_block(quotes)}\n")
+    parts.append(f"## 시장·거시 지표 (괄호=직전 관측 대비; [%ile=기간내 백분위(일별≈최근5년·월별≈최근20년), 1M/YTD=모멘텀, 고점比=52주 고점 대비, σ=연율 실현변동성, 이상치])\n{_data_block(quotes)}\n")
     parts.append(f"## 핵심 자산 다기간 모멘텀\n{_momentum_block(quotes)}\n")
     parts.append(f"## 주요 뉴스 헤드라인\n{_news_block(news)}\n")
     parts.append(f"## 예정된 주요 경제지표 발표 (UTC)\n{_calendar_block(events, now_utc=now_utc)}")

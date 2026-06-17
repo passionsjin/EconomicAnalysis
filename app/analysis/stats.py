@@ -98,11 +98,70 @@ def momentum(key: str) -> dict | None:
     return _momentum_from(vd)
 
 
-def enrich(key: str, value: float | None, freq: str, window: int | None = None) -> dict:
-    """history 1회 조회로 백분위·z-score·이상치 + (일별)다기간 모멘텀을 함께 계산.
+def _ord(d: str) -> int | None:
+    try:
+        return date.fromisoformat(d[:10]).toordinal()
+    except ValueError:
+        return None
 
-    백분위/z-score 룩백은 빈도별(일≈5년/주≈5년/월≈20년)이며, 실제 보유 이력 내에서만
-    계산한다. ctx 에 표본수(n)와 실제 기간(span)을 함께 담아 '어느 기간 기준인지' 노출한다.
+
+def risk_metrics(dv: list[tuple[str, float]], vol_window: int = 30,
+                 hl_days: int = 365) -> dict | None:
+    """일별 (date,value) 시계열 → 리스크 지표.
+
+    - rvol: 실현변동성(연율 %). 최근 vol_window 거래일 일간수익률 표준편차 × √252.
+    - dist_high/dist_low: 현재값의 52주(날짜 기준 hl_days) 고점/저점 대비 거리(%).
+    - mdd: 같은 52주 창의 최대낙폭(고점→저점, ≤0 %).
+    가격형(비% 단위) 일별 지표에만 의미가 있다(호출부에서 게이트).
+    """
+    if len(dv) < 20:
+        return None
+    vals_all = [v for _d, v in dv]
+    cur = vals_all[-1]
+
+    # 실현변동성(연율) — 최근 vol_window 거래일 수익률
+    seg = vals_all[-(vol_window + 1):]
+    rets = [seg[i] / seg[i - 1] - 1 for i in range(1, len(seg)) if seg[i - 1] not in (None, 0)]
+    rvol = None
+    if len(rets) >= 10:
+        mean = sum(rets) / len(rets)
+        var = sum((r - mean) ** 2 for r in rets) / (len(rets) - 1)
+        rvol = round(math.sqrt(var) * math.sqrt(252) * 100, 1)
+
+    # 52주(날짜 기준) 창
+    last_o = _ord(dv[-1][0])
+    if last_o is not None:
+        cutoff = last_o - hl_days
+        win = [v for d, v in dv if (_ord(d) or 0) >= cutoff]
+    else:
+        win = vals_all[-252:]
+    if len(win) < 2:
+        return {"rvol": rvol, "dist_high": None, "dist_low": None, "mdd": None, "hi": None, "lo": None}
+
+    hi, lo = max(win), min(win)
+    dist_high = round((cur / hi - 1) * 100, 1) if hi else None   # ≤0 (고점 아래)
+    dist_low = round((cur / lo - 1) * 100, 1) if lo else None    # ≥0 (저점 위)
+
+    peak, mdd = win[0], 0.0
+    for v in win:
+        if v > peak:
+            peak = v
+        if peak and peak > 0:
+            dd = (v / peak - 1) * 100
+            if dd < mdd:
+                mdd = dd
+
+    return {"rvol": rvol, "dist_high": dist_high, "dist_low": dist_low,
+            "mdd": round(mdd, 1), "hi": hi, "lo": lo}
+
+
+def enrich(key: str, value: float | None, freq: str,
+           window: int | None = None, unit: str = "") -> dict:
+    """history 1회 조회로 백분위·z-score·이상치 + (일별)모멘텀·리스크지표를 함께 계산.
+
+    백분위/z-score 룩백은 빈도별(일≈5년/주≈5년/월≈20년)이며 보유 이력 내에서만 계산.
+    risk(실현변동성·MDD·52주 고저거리)는 일별 '가격형'(비% 단위) 지표에만 의미가 있어
+    freq=='D' 이고 unit!='%' 일 때만 산출한다.
     """
     win = window if window is not None else stat_window(freq)
     series = repo.get_series(key, max(win, 300))
@@ -120,4 +179,5 @@ def enrich(key: str, value: float | None, freq: str, window: int | None = None) 
             "span": _span_label([d for d, _ in recent]),
         }
     mom = _momentum_from(dv) if freq == "D" else None
-    return {"ctx": ctx, "momentum": mom}
+    risk = risk_metrics(dv) if (freq == "D" and unit != "%") else None
+    return {"ctx": ctx, "momentum": mom, "risk": risk}

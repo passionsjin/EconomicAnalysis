@@ -106,6 +106,7 @@ CATEGORIES: dict[str, str] = {
     "rate": "금리·채권",
     "commodity": "원자재",
     "crypto": "암호화폐",
+    "ratio": "크로스에셋 비율",
     "sector": "미국 섹터(SPDR)",
     "us_macro": "미국 거시지표",
     "liquidity": "유동성·통화",
@@ -122,7 +123,7 @@ class Indicator:
     symbol: str                    # 소스별 심볼/시리즈 ID
     unit: str = ""                 # "", "%", "P", "천명", "원" 등
     decimals: int = 2              # 표시 소수 자리
-    scale: float = 1.0             # 원시값에 곱하는 배율(현재 FRED 수집기 적용; 예: 백만$→조$ = 1e-6)
+    scale: float = 1.0             # 원시값에 곱하는 배율(FRED 수집·derived 파생에 적용; 예 백만$→조$=1e-6, 비율 가독화 ×1000)
     # 값이 오르면 긍정(green)인지(주가) 단순 중립인지. 화면 색상 힌트.
     up_is_good: Optional[bool] = None
     # FRED 변환: None | "yoy"(전년동월대비 %) — 지수 시리즈를 등락률로
@@ -180,6 +181,17 @@ INDICATORS: list[Indicator] = [
     # ── 암호화폐 ──
     Indicator("btc", "비트코인",   "crypto", "yahoo", "BTC-USD", unit="$", decimals=0, up_is_good=None),
     Indicator("eth", "이더리움",   "crypto", "yahoo", "ETH-USD", unit="$", decimals=2),
+
+    # ── 크로스에셋 비율 (파생; 자산간 상대강도 = 단일 지표로 안 보이는 국면 신호) ──
+    Indicator("r_copper_gold", "구리/금 ×1000", "ratio", "derived", "", decimals=3, scale=1000.0,
+              derived=("copper", "/", "gold"), up_is_good=None,
+              note="구리/금: 상승=경기·성장 기대(채권금리와 동행), 하락=안전선호·둔화 우려"),
+    Indicator("r_gold_silver", "금/은",          "ratio", "derived", "", decimals=1,
+              derived=("gold", "/", "silver"), up_is_good=False,
+              note="금/은 비율: 상승=위험회피·경기둔화, 하락=위험선호. 통상 70~90 범위"),
+    Indicator("r_spx_gold",    "주식/금(S&P÷금)", "ratio", "derived", "", decimals=3,
+              derived=("sp500", "/", "gold"), up_is_good=True,
+              note="S&P500/금: 위험자산의 안전자산 대비 상대성과(상승=위험선호)"),
 
     # ── 미국 섹터 ETF (Yahoo; 섹터 로테이션 — 방어/경기민감 차별화) ──
     Indicator("xlk",  "기술",        "sector", "yahoo", "XLK",  decimals=2, up_is_good=True),
@@ -256,7 +268,7 @@ def indicators_for_source(source: str) -> list[Indicator]:
 _PRIORITY_1 = {
     "sp500", "nasdaq", "vix", "us10y", "us_real10y", "dxy", "us_fedfunds",
     "us_cpi_yoy", "us_10y2y", "us_hy_spread", "kospi", "usdkrw", "gold", "btc", "wti",
-    "us_t10y3m", "us_nfci", "us_net_liq",
+    "us_t10y3m", "us_nfci", "us_net_liq", "r_copper_gold",
 }
 _PRIORITY_3 = {
     "silver", "copper", "natgas", "us05y", "us13w", "us30y",

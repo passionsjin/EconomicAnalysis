@@ -31,8 +31,17 @@ _DELTA_KEYS = ["sp500", "nasdaq", "kospi", "vix", "us10y", "us_real10y",
                "dxy", "usdkrw", "gold", "wti", "btc", "us_hy_spread"]
 
 
-def _apply_op(acc: float, op: str, x: float) -> float:
-    return acc - x if op == "-" else acc + x
+def _apply_op(acc, op: str, x):
+    """누적값에 연산 적용. '/' 는 0 나눗셈 시 None(계산 불가) 반환."""
+    if acc is None or x is None:
+        return None
+    if op == "/":
+        return acc / x if x != 0 else None
+    if op == "*":
+        return acc * x
+    if op == "-":
+        return acc - x
+    return acc + x
 
 
 def _compute_derived(quotes: dict[str, Quote]) -> list[Quote]:
@@ -59,6 +68,11 @@ def _compute_derived(quotes: dict[str, Quote]) -> list[Quote]:
         value = bq.value
         for op, k in ops:
             value = _apply_op(value, op, operands[k].value)
+        if value is None:                       # 0 나눗셈 등 → 계산 불가
+            out.append(Quote(key=ind.key, ok=False, error="파생 계산 불가(0 나눗셈)"))
+            continue
+        scale = ind.scale                       # 비율 가독화(예: 구리/금 ×1000)
+        value *= scale
 
         maps = {k: {d: v for d, v in operands[k].history} for _op, k in ops}
         hist: list[tuple[str, float]] = []
@@ -67,7 +81,8 @@ def _compute_derived(quotes: dict[str, Quote]) -> list[Quote]:
                 acc = v
                 for op, k in ops:
                     acc = _apply_op(acc, op, maps[k][d])
-                hist.append((d, acc))
+                if acc is not None:
+                    hist.append((d, acc * scale))
         prev = hist[-2][1] if len(hist) >= 2 else None
         out.append(Quote(key=ind.key, value=value, prev_close=prev,
                          as_of=bq.as_of, history=hist, ok=True))

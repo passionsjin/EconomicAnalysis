@@ -101,6 +101,15 @@ def api_correlations(window: int = 30):
     return regime_mod.snapshot(window)
 
 
+@app.get("/api/regime")
+def api_regime(window: int = 20, span: int = 90):
+    """위험선호 점수(현재 + 추이). 대시보드 레짐 패널·스파크라인용."""
+    window = max(5, min(window, 60))
+    span = max(20, min(span, 250))
+    return {"current": regime_mod.detect_regime(window),
+            "history": regime_mod.regime_history(window, span)}
+
+
 @app.get("/api/alerts")
 def api_alerts(limit: int = 20):
     return {"events": repo.recent_source_events(limit)}

@@ -37,7 +37,7 @@
     </span>
   {% endfor %}
   {% if d.regime %}
-    <span class="hbadge regime {{ d.regime.tone }}" title="{{ d.regime.tip }}">시장 분위기: {{ d.regime.short }} <span class="hbadge-help">ⓘ</span></span>
+    <span class="hbadge regime {{ d.regime.tone }}" title="{{ d.regime.tip }}">시장 분위기: {{ d.regime.short }}{% if d.regime.score is not none %} <b>{{ d.regime.score }}</b>{% endif %} <span class="hbadge-help">ⓘ</span></span>
   {% endif %}
   <span class="spacer"></span>
   <span class="status-note" id="status-note"></span>
@@ -134,12 +134,13 @@
 {# ───────── 상관/레짐 히트맵 ───────── #}
 {% if not historical %}
 <section class="card">
-  <h3 class="group-title">🔗 자산간 상관 (최근 30일 일간수익률)
-    {% if d.regime %}<span class="badge {{ d.regime.tone }}" title="{{ d.regime.tip }}">시장 분위기: {{ d.regime.short }}</span>{% endif %}
+  <h3 class="group-title">🧭 시장 분위기 &amp; 자산간 상관
+    {% if d.regime and d.regime.score is not none %}<span class="badge {{ d.regime.tone }}" title="{{ d.regime.tip }}">{{ d.regime.short }} · {{ d.regime.score }}/100</span>{% endif %}
   </h3>
+  <div id="regime-panel" class="regime-panel muted">시장 분위기 계산 중…</div>
+  <h4 class="subhead">자산간 상관 (최근 30일 일간수익률)</h4>
   <div id="corr-heatmap" class="corr-wrap muted">상관 행렬 로딩 중…</div>
-  {% if d.regime %}<div class="corr-legend muted">{{ d.regime.meaning }}</div>{% endif %}
-  <div class="corr-legend muted">상관 +1(동조, 초록) ↔ −1(역행, 빨강). 판정 근거: {% if d.regime %}{{ d.regime.drivers|join(' · ') or '특이 신호 없음' }}{% endif %}</div>
+  <div class="corr-legend muted">상관 +1(동조, 초록) ↔ −1(역행, 빨강).</div>
 </section>
 {% endif %}
 

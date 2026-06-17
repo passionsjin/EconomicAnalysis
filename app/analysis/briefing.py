@@ -192,7 +192,10 @@ def _regime_block(regime: dict) -> str:
     r = (regime or {}).get("regime") or {}
     win = regime.get("window")
     drivers = ", ".join(r.get("drivers") or []) or "특이 동인 없음"
-    lines = [f"- 판정: {r.get('label', '—')} (최근 {win}일; 동인: {drivers})"]
+    score = r.get("score")
+    score_txt = f"{score}/100" if score is not None else "—"
+    lines = [f"- 판정: {r.get('label', '—')} · 위험선호점수 {score_txt} "
+             f"(0~100·50중립; 최근 {win}일; 동인: {drivers})"]
     labels = regime.get("labels") or []
     m = regime.get("matrix") or []
     pairs = []
@@ -405,20 +408,37 @@ def _is_hangul(ch: str) -> bool:
     return "가" <= ch <= "힣"  # 한글 음절(가~힣)
 
 
-def _label_value_pos(body: str, label: str) -> Optional[int]:
-    """본문에서 label 이 '독립 토큰'으로 나오는 첫 위치의 라벨 끝 인덱스(없으면 None).
+_NUM_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
 
-    한글 라벨이 더 큰 단어의 일부로 매칭되는 오탐(예: '금'↔'금리결정')을 막기 위해
-    라벨 양옆이 한글이면 건너뛴다. 값 인용은 보통 '라벨(값)'·'라벨 값' 형태라
-    뒤가 비한글(괄호/공백/숫자/기호)인 첫 매칭만 채택해도 실제 인용은 대부분 잡힌다.
+
+def _cited_value(body: str, ind, maxgap: int = 6) -> Optional[float]:
+    """본문에서 지표 라벨 '바로 뒤'에 인용된 값을 추출(없으면 None).
+
+    오탐 방지 3중 가드:
+    - 라벨 양옆이 한글이면 더 큰 단어의 일부('금'↔'금리결정')로 보고 건너뛴다.
+    - 값은 라벨 직후(maxgap 자 이내)에 와야 한다. '코스피 YTD +102.5%' 처럼 라벨 뒤가
+      모멘텀/백분위 태그로 시작하면(숫자가 멀리 있음) 그 등장은 값 인용이 아니다.
+    - 비(非)% 지표는 백분율 숫자(YTD/%ile, '+102.5%')를 값으로 오인하지 않게 '%' 붙은 수는 건너뜀.
+    여러 번 등장하면 위 조건을 처음 만족하는 등장의 숫자를 값으로 채택.
     """
-    for m in re.finditer(re.escape(label), body):
+    is_pct = ind.unit == "%"
+    for m in re.finditer(re.escape(ind.label), body):
         s, e = m.start(), m.end()
         before = body[s - 1] if s > 0 else ""
         after = body[e] if e < len(body) else ""
         if _is_hangul(before) or _is_hangul(after):
             continue
-        return e
+        seg = body[e: e + 30]
+        for nm in _NUM_RE.finditer(seg):
+            if nm.start() > maxgap:
+                break          # 값은 라벨 바로 뒤에 와야 함 — 너무 멀면 값 인용 아님
+            nxt = seg[nm.end()] if nm.end() < len(seg) else ""
+            if not is_pct and nxt == "%":
+                continue       # 백분율(YTD/%ile/모멘텀)은 가격 인용이 아님
+            try:
+                return float(nm.group().replace(",", ""))
+            except ValueError:
+                continue
     return None
 
 
@@ -433,16 +453,8 @@ def _citation_audit(body: str, quotes: dict[str, Quote]) -> list[str]:
         q, ind = quotes.get(key), INDICATOR_BY_KEY.get(key)
         if not q or not q.ok or q.value is None or not ind:
             continue
-        pos = _label_value_pos(body, ind.label)
-        if pos is None:
-            continue
-        seg = body[pos: pos + 28].replace(",", "")
-        mt = re.search(r"-?\d+(?:\.\d+)?", seg)
-        if not mt:
-            continue
-        try:
-            cited = float(mt.group())
-        except ValueError:
+        cited = _cited_value(body, ind)
+        if cited is None:
             continue
         v = q.value
         if v and abs(cited - v) / abs(v) > 0.05:

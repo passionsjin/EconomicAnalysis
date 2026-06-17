@@ -65,6 +65,27 @@ a:hover{text-decoration:underline}
 .hbadge.regime.warn{color:var(--warn);border-color:rgba(240,160,32,.35)}
 .hbadge-help{font-size:10px;opacity:.6;font-weight:400}
 
+/* ── 시장 분위기(위험선호 점수) 패널 ── */
+.regime-panel{margin-bottom:8px}
+.subhead{font-size:12px;color:var(--muted);margin:16px 0 8px;font-weight:600}
+.regime-top{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.regime-score{font-size:36px;font-weight:700;font-family:'IBM Plex Mono',ui-monospace,monospace;line-height:1}
+.regime-score small{font-size:14px;color:var(--muted2);font-weight:400}
+.regime-meta{flex:1;min-width:200px}
+.regime-label{font-weight:600;font-size:14px;margin-bottom:6px}
+.regime-gauge{position:relative;height:8px;background:var(--card2);border-radius:5px;overflow:hidden}
+.regime-gauge>span{position:absolute;left:0;top:0;bottom:0;border-radius:5px;opacity:.85}
+.regime-gauge>i{position:absolute;left:50%;top:-2px;width:2px;height:12px;background:var(--muted);opacity:.5}
+.regime-drivers{font-size:11px;margin-top:7px;line-height:1.5}
+#regime-spark{width:240px;max-width:42vw}
+.regime-comp{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:5px 16px;margin-top:14px}
+.rc{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--muted)}
+.rc-l{min-width:84px;text-align:right;white-space:nowrap}
+.rc-bar{position:relative;flex:1;height:6px;background:var(--card2);border-radius:3px}
+.rc-bar>b{position:absolute;top:0;bottom:0;border-radius:3px;opacity:.85}
+.rc-bar>b.pos{background:var(--good)}
+.rc-bar>b.neg{background:var(--bad)}
+
 /* ── 상관 히트맵 ── */
 .corr-wrap{overflow:auto}
 table.corr{border-collapse:collapse;font-size:11px;font-family:'IBM Plex Mono',ui-monospace,monospace;width:100%}

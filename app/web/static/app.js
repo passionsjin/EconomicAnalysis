@@ -198,6 +198,51 @@ async function renderCorrelations() {
   el.innerHTML = html;
 }
 
+/* ── 시장 분위기(위험선호 점수) 패널 ── */
+async function renderRegime() {
+  const el = document.getElementById("regime-panel");
+  if (!el) return;
+  let j;
+  try { j = await fetch("/api/regime?window=20&span=90").then((r) => r.json()); }
+  catch (e) { el.textContent = "시장 분위기 데이터를 불러오지 못했습니다."; return; }
+  const cur = j.current || {}, hist = j.history || [];
+  if (cur.score === null || cur.score === undefined) { el.textContent = "데이터 부족으로 계산 불가."; return; }
+  const color = TONE[cur.tone] || TONE.neutral;
+  el.classList.remove("muted");
+  el.innerHTML = `
+    <div class="regime-top">
+      <div class="regime-score" style="color:${color}">${cur.score}<small>/100</small></div>
+      <div class="regime-meta">
+        <div class="regime-label" style="color:${color}">${cur.short || ""}</div>
+        <div class="regime-gauge"><span style="width:${cur.score}%;background:${color}"></span><i></i></div>
+        <div class="regime-drivers muted">${(cur.drivers || []).join(" · ")}</div>
+      </div>
+      <canvas id="regime-spark" height="46"></canvas>
+    </div>
+    <div class="regime-comp"></div>`;
+  const comp = el.querySelector(".regime-comp");
+  (cur.components || []).forEach((c) => {
+    const pos = c.contrib >= 0, w = Math.min(Math.abs(c.contrib), 1) * 50;
+    comp.insertAdjacentHTML("beforeend",
+      `<div class="rc" title="${c.label}: 기여 ${pos ? "+" : ""}${c.contrib} · 가중 ${c.weight}">
+         <span class="rc-l">${c.label}</span>
+         <span class="rc-bar"><b class="${pos ? "pos" : "neg"}" style="width:${w}%;${pos ? "left:50%" : "right:50%"}"></b></span>
+       </div>`);
+  });
+  const cv = document.getElementById("regime-spark");
+  if (cv && hist.length > 1 && window.Chart) {
+    new Chart(cv, {
+      type: "line",
+      data: { labels: hist.map((p) => p.date),
+        datasets: [{ data: hist.map((p) => p.score), borderColor: color, borderWidth: 1.5,
+          pointRadius: 0, tension: 0.25, fill: false }] },
+      options: { responsive: true, maintainAspectRatio: true, aspectRatio: 5.5, animation: false,
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: { x: { display: false }, y: { display: false, min: 0, max: 100 } } },
+    });
+  }
+}
+
 /* ── 모달 큰 차트 ── */
 let _modalChart = null;
 async function openChart(key, label, unit) {
@@ -287,6 +332,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (sparks.length) pool([...sparks], drawSpark, 6);
   applyFavs();
   renderCorrelations();
+  renderRegime();
   autoRefreshLoop();
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 });

@@ -17,6 +17,7 @@ from typing import Optional
 
 from ..config import (INDICATOR_BY_KEY, CATEGORIES, settings, BASE_DIR,
                       priority_of, source_tier)
+from ..logging_setup import logger
 from ..models import Briefing, CalendarEvent, NewsItem, Quote
 from .stats import percentile_rank, zscore, _momentum_from, stat_window, risk_metrics
 from .calendar_util import surprise as cal_surprise
@@ -498,6 +499,8 @@ def generate(quotes: dict[str, Quote], news: list[NewsItem],
     # 최대 2회: 타임아웃/실행오류/빈응답/엔벨로프오류 시 1회 재시도(LLM 불안정 대비)
     last_err = ""
     for attempt in (1, 2):
+        if attempt == 2:
+            logger.info("    - 브리핑 재시도 2/2 (직전 실패: %s)...", (last_err or "")[:60])
         try:
             rc, stdout, stderr = _run_cli(cmd, prompt, settings.llm_timeout)
         except subprocess.TimeoutExpired:

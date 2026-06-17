@@ -38,12 +38,18 @@ def save_observations(snapshot_id: int, quotes: list[Quote]) -> None:
         for q in quotes
     ]
     with get_con() as con:
-        con.executemany(
-            """INSERT OR REPLACE INTO observations
-               (snapshot_id, key, value, prev_close, change, change_pct, as_of, source, ok, error)
-               VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            rows,
-        )
+        con.execute("BEGIN IMMEDIATE")          # 단일 트랜잭션(행마다 autocommit 방지)
+        try:
+            con.executemany(
+                """INSERT OR REPLACE INTO observations
+                   (snapshot_id, key, value, prev_close, change, change_pct, as_of, source, ok, error)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                rows,
+            )
+            con.execute("COMMIT")
+        except Exception:
+            con.execute("ROLLBACK")
+            raise
 
 
 def upsert_history(quotes: list[Quote]) -> None:
@@ -54,10 +60,18 @@ def upsert_history(quotes: list[Quote]) -> None:
                 rows.append((q.key, date, value))
     if not rows:
         return
+    # 매 수집마다 키별 다년 이력(수만 행)을 다시 쓰므로 반드시 단일 트랜잭션으로 — autocommit
+    # 이면 행마다 커밋해 수십 초~분이 걸리고 동시 수집과 락 경합도 심해진다.
     with get_con() as con:
-        con.executemany(
-            "INSERT OR REPLACE INTO history (key, date, value) VALUES (?,?,?)", rows
-        )
+        con.execute("BEGIN IMMEDIATE")
+        try:
+            con.executemany(
+                "INSERT OR REPLACE INTO history (key, date, value) VALUES (?,?,?)", rows
+            )
+            con.execute("COMMIT")
+        except Exception:
+            con.execute("ROLLBACK")
+            raise
 
 
 def save_health(snapshot_id: int, items: list[SourceHealth]) -> None:

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -102,13 +102,14 @@ def _translate_news() -> None:
             repo.set_news_translation(r["link"], r["title"])  # 이미 한국어 → 캐시
     if not to_translate:
         return
+    logger.info("    - 뉴스 번역 중 (%d건, claude -p)...", len(to_translate))
     kos = translate_mod.translate_titles([r["title"] for r in to_translate])
     n = 0
     for r, ko in zip(to_translate, kos):
         if ko and ko != r["title"]:
             repo.set_news_translation(r["link"], ko)
             n += 1
-    logger.info("  - 뉴스 번역 %d/%d건", n, len(to_translate))
+    logger.info("    - 뉴스 번역 완료 %d/%d건", n, len(to_translate))
 
 
 def _escalate_failures(healths, ts_utc: str) -> None:
@@ -242,9 +243,21 @@ def _do_run(started: datetime) -> dict:
 
 
 def _do_run_inner(started: datetime, ts_utc: str, snapshot_id: int) -> dict:
-    # 1) 모든 수집기 병렬 실행 (각 run() 은 예외를 던지지 않음)
-    with ThreadPoolExecutor(max_workers=max(2, len(ALL_COLLECTORS))) as ex:
-        results = list(ex.map(lambda c: c.run(), ALL_COLLECTORS))
+    # 1) 모든 수집기 병렬 실행 - 끝나는 대로 소스별 결과를 로그(라이브 진행 표시)
+    n_src = len(ALL_COLLECTORS)
+    logger.info("  [1/5] 소스 수집 - %d개 병렬 시작...", n_src)
+    t_stage = time.monotonic()
+    results = []
+    with ThreadPoolExecutor(max_workers=max(2, n_src)) as ex:
+        futures = {ex.submit(c.run): c for c in ALL_COLLECTORS}
+        for fut in as_completed(futures):
+            c = futures[fut]
+            r = fut.result()
+            results.append(r)
+            h = r.health
+            logger.info("    - (%d/%d) %-9s %s fetched=%d failed=%d %dms",
+                        len(results), n_src, c.source, "OK" if (h and h.ok) else "FAIL",
+                        h.fetched if h else 0, h.failed if h else 0, h.latency_ms if h else 0)
 
     quotes: dict[str, Quote] = {}
     all_quotes: list[Quote] = []
@@ -260,7 +273,8 @@ def _do_run_inner(started: datetime, ts_utc: str, snapshot_id: int) -> dict:
         if r.health:
             healths.append(r.health)
 
-    # 1b) 파생지표(실질금리 등) — 수집된 피연산 지표로 계산
+    # 2) 파생지표(실질금리·비율 등) — 수집된 피연산 지표로 계산
+    logger.info("  [2/5] 파생지표 계산...")
     for dq in _compute_derived(quotes):
         quotes[dq.key] = dq
         all_quotes.append(dq)
@@ -268,12 +282,9 @@ def _do_run_inner(started: datetime, ts_utc: str, snapshot_id: int) -> dict:
     ok_count = sum(1 for q in all_quotes if q.ok)
     fail_count = sum(1 for q in all_quotes if not q.ok)
 
-    for h in sorted(healths, key=lambda x: x.source):
-        logger.info("  - %-9s %-4s fetched=%d failed=%d %dms %s",
-                    h.source, "OK" if h.ok else "FAIL",
-                    h.fetched, h.failed, h.latency_ms, (h.message or "")[:60])
-
-    # 2) 저장 (+ 장애 에스컬레이션은 직전 상태 기준이라 save_health 전에)
+    # 3) 저장 (+ 장애 에스컬레이션은 직전 상태 기준이라 save_health 전에)
+    logger.info("  [3/5] 저장 - 지표 %d(ok %d/fail %d) | 뉴스 %d | 캘린더 %d...",
+                len(all_quotes), ok_count, fail_count, len(news), len(events))
     repo.save_observations(snapshot_id, all_quotes)
     repo.upsert_history(all_quotes)
     _escalate_failures(healths, ts_utc)
@@ -300,13 +311,16 @@ def _do_run_inner(started: datetime, ts_utc: str, snapshot_id: int) -> dict:
                 repo.save_regime_score(snapshot_id, r["score"], r.get("tone", ""), r.get("short", ""))
             except Exception:  # noqa: BLE001 — 점수 기록 실패가 수집을 막지 않게
                 pass
-    logger.info("  - briefing 생성 중(claude -p)...")
+    logger.info("  [4/5] 데이터 저장 완료(%.1fs) - 브리핑 생성 중 (claude -p, 최대 %ds)...",
+                time.monotonic() - t_stage, settings.llm_timeout)
+    t_brief = time.monotonic()
     brief = briefing_mod.generate(quotes, news, events, now_kst,
                                   prior=prior_ctx, regime=regime_snap, now_utc=started)
     if brief.ok:
-        logger.info("  - briefing OK: %s / %s", brief.model, brief.sentiment)
+        logger.info("  [5/5] 브리핑 OK - %s / %s (%.1fs)",
+                    brief.model, brief.sentiment, time.monotonic() - t_brief)
     else:
-        logger.warning("  - briefing 실패: %s", brief.error)
+        logger.warning("  [5/5] 브리핑 실패 - %s (%.1fs)", brief.error, time.monotonic() - t_brief)
     repo.save_briefing(snapshot_id, datetime.now(timezone.utc).isoformat(), brief)
 
     # 4) 정리

@@ -31,25 +31,46 @@ _DELTA_KEYS = ["sp500", "nasdaq", "kospi", "vix", "us10y", "us_real10y",
                "dxy", "usdkrw", "gold", "wti", "btc", "us_hy_spread"]
 
 
+def _apply_op(acc: float, op: str, x: float) -> float:
+    return acc - x if op == "-" else acc + x
+
+
 def _compute_derived(quotes: dict[str, Quote]) -> list[Quote]:
-    """source='derived' 지표(예: 실질금리=명목−기대인플레)를 피연산 지표로부터 계산."""
+    """source='derived' 지표를 피연산 지표로부터 계산.
+
+    derived 는 (기준키, op, 키, op, 키, ...) 평탄 시퀀스 — N항 가감을 지원한다.
+    예) 실질금리=("us10y","-","us_be10y")  |  순유동성=("us_walcl","-","us_rrp","-","us_tga").
+    값/이력 모두 공통 날짜에서만 결합(피연산 빈도가 다르면 교집합 날짜로).
+    """
     out: list[Quote] = []
     for ind in INDICATORS:
         if ind.source != "derived" or not ind.derived:
             continue
-        lhs_k, op, rhs_k = ind.derived
-        lq, rq = quotes.get(lhs_k), quotes.get(rhs_k)
-        if (not lq or not rq or not lq.ok or not rq.ok
-                or lq.value is None or rq.value is None):
+        terms = ind.derived
+        base_key = terms[0]
+        ops = [(terms[i], terms[i + 1]) for i in range(1, len(terms), 2)]  # [(op, key), ...]
+        bq = quotes.get(base_key)
+        operands = {k: quotes.get(k) for _op, k in ops}
+        if (bq is None or not bq.ok or bq.value is None
+                or any(q is None or not q.ok or q.value is None for q in operands.values())):
             out.append(Quote(key=ind.key, ok=False, error="피연산 지표 결측"))
             continue
-        combine = (lambda a, b: a - b) if op == "-" else (lambda a, b: a + b)
-        rmap = {d: v for d, v in rq.history}
-        hist = [(d, combine(v, rmap[d])) for d, v in lq.history if d in rmap]
+
+        value = bq.value
+        for op, k in ops:
+            value = _apply_op(value, op, operands[k].value)
+
+        maps = {k: {d: v for d, v in operands[k].history} for _op, k in ops}
+        hist: list[tuple[str, float]] = []
+        for d, v in bq.history:
+            if all(d in maps[k] for _op, k in ops):
+                acc = v
+                for op, k in ops:
+                    acc = _apply_op(acc, op, maps[k][d])
+                hist.append((d, acc))
         prev = hist[-2][1] if len(hist) >= 2 else None
-        out.append(Quote(key=ind.key, value=combine(lq.value, rq.value),
-                         prev_close=prev, as_of=(lq.as_of or rq.as_of),
-                         history=hist, ok=True))
+        out.append(Quote(key=ind.key, value=value, prev_close=prev,
+                         as_of=bq.as_of, history=hist, ok=True))
     return out
 
 

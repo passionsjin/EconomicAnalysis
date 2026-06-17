@@ -95,6 +95,8 @@ class FredCollector(Collector):
             if not series:
                 raise ValueError("데이터 없음")
             series = series[-settings.history_points:]  # 다년 보관(일별≈5년/월별 다년) — 백분위 룩백 확보
+            if ind.scale != 1.0:                         # 단위 환산(예: 백만$→조$)
+                series = [(d, v * ind.scale) for d, v in series]
             value = series[-1][1]
             prev = series[-2][1] if len(series) >= 2 else None
             as_of = series[-1][0]

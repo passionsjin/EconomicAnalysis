@@ -106,7 +106,9 @@ CATEGORIES: dict[str, str] = {
     "rate": "금리·채권",
     "commodity": "원자재",
     "crypto": "암호화폐",
+    "sector": "미국 섹터(SPDR)",
     "us_macro": "미국 거시지표",
+    "liquidity": "유동성·통화",
     "kr_macro": "한국 거시지표",
 }
 
@@ -120,6 +122,7 @@ class Indicator:
     symbol: str                    # 소스별 심볼/시리즈 ID
     unit: str = ""                 # "", "%", "P", "천명", "원" 등
     decimals: int = 2              # 표시 소수 자리
+    scale: float = 1.0             # 원시값에 곱하는 배율(현재 FRED 수집기 적용; 예: 백만$→조$ = 1e-6)
     # 값이 오르면 긍정(green)인지(주가) 단순 중립인지. 화면 색상 힌트.
     up_is_good: Optional[bool] = None
     # FRED 변환: None | "yoy"(전년동월대비 %) — 지수 시리즈를 등락률로
@@ -160,6 +163,8 @@ INDICATORS: list[Indicator] = [
 
     # ── 금리·채권 (Yahoo 수익률 지수, % 단위) ──
     Indicator("us10y", "미 국채 10년", "rate", "yahoo", "^TNX", unit="%", decimals=3, up_is_good=None),
+    Indicator("us02y", "미 국채 2년",  "rate", "fred",  "DGS2", unit="%", decimals=3, up_is_good=None, freq="D",
+              note="정책금리 민감 만기 — 커브(2s10s)의 단기축"),
     Indicator("us30y", "미 국채 30년", "rate", "yahoo", "^TYX", unit="%", decimals=3),
     Indicator("us05y", "미 국채 5년",  "rate", "yahoo", "^FVX", unit="%", decimals=3),
     Indicator("us13w", "미 국채 13주", "rate", "yahoo", "^IRX", unit="%", decimals=3),
@@ -175,6 +180,19 @@ INDICATORS: list[Indicator] = [
     # ── 암호화폐 ──
     Indicator("btc", "비트코인",   "crypto", "yahoo", "BTC-USD", unit="$", decimals=0, up_is_good=None),
     Indicator("eth", "이더리움",   "crypto", "yahoo", "ETH-USD", unit="$", decimals=2),
+
+    # ── 미국 섹터 ETF (Yahoo; 섹터 로테이션 — 방어/경기민감 차별화) ──
+    Indicator("xlk",  "기술",        "sector", "yahoo", "XLK",  decimals=2, up_is_good=True),
+    Indicator("xlf",  "금융",        "sector", "yahoo", "XLF",  decimals=2, up_is_good=True),
+    Indicator("xle",  "에너지",      "sector", "yahoo", "XLE",  decimals=2, up_is_good=True),
+    Indicator("xlv",  "헬스케어",    "sector", "yahoo", "XLV",  decimals=2, up_is_good=True),
+    Indicator("xli",  "산업재",      "sector", "yahoo", "XLI",  decimals=2, up_is_good=True),
+    Indicator("xly",  "임의소비재",  "sector", "yahoo", "XLY",  decimals=2, up_is_good=True),
+    Indicator("xlp",  "필수소비재",  "sector", "yahoo", "XLP",  decimals=2, up_is_good=True),
+    Indicator("xlu",  "유틸리티",    "sector", "yahoo", "XLU",  decimals=2, up_is_good=True),
+    Indicator("xlb",  "소재",        "sector", "yahoo", "XLB",  decimals=2, up_is_good=True),
+    Indicator("xlre", "부동산",      "sector", "yahoo", "XLRE", decimals=2, up_is_good=True),
+    Indicator("xlc",  "커뮤니케이션", "sector", "yahoo", "XLC",  decimals=2, up_is_good=True),
 
     # ── 미국 거시 (FRED 시리즈; 키 없으면 CSV 폴백, 도달 불가 시 자동 스킵) ──
     Indicator("us_fedfunds", "미 기준금리(실효)", "us_macro", "fred", "DFF",    unit="%", decimals=2),
@@ -192,6 +210,31 @@ INDICATORS: list[Indicator] = [
     Indicator("us_real10y",  "미 10년 실질금리",  "us_macro", "derived", "", unit="%", decimals=2,
               derived=("us10y", "-", "us_be10y"),
               note="명목 10년 − 10년 기대인플레. 실제 통화긴축 강도"),
+    Indicator("us_t10y3m",   "미 장단기차(10Y-3M)", "us_macro", "fred", "T10Y3M", unit="%", decimals=2, up_is_good=None,
+              note="연준 선호 침체 선행지표 — 음수면 역전"),
+    Indicator("us_ig_spread","미 투자등급 스프레드", "us_macro", "fred", "BAMLC0A0CM", unit="%", decimals=2, up_is_good=False,
+              note="IG 회사채 OAS — HY와 함께 신용여건 해석"),
+    Indicator("us_5y5y",     "미 5y5y 기대인플레",  "us_macro", "fred", "T5YIFR", unit="%", decimals=2, up_is_good=None,
+              note="5년후 5년 선도 기대인플레(연준 장기 기대 척도)"),
+    Indicator("us_nfci",     "미 금융여건지수(NFCI)","us_macro", "fred", "NFCI", decimals=2, up_is_good=False, freq="W",
+              note="0 기준 · 양수=긴축적 / 음수=완화적 금융여건"),
+    Indicator("us_indpro_yoy","미 산업생산 전년比",  "us_macro", "fred", "INDPRO", unit="%", decimals=2, transform="yoy", up_is_good=True, freq="M"),
+    Indicator("us_umcsent",  "미 소비자심리(미시간)", "us_macro", "fred", "UMCSENT", decimals=1, up_is_good=True, freq="M",
+              note="미시간대 소비자심리지수(높을수록 양호)"),
+    Indicator("us_mortgage30","미 30년 모기지금리",  "us_macro", "fred", "MORTGAGE30US", unit="%", decimals=2, up_is_good=False, freq="W"),
+
+    # ── 유동성·통화 (FRED; scale 로 조달러 환산. 순유동성은 파생) ──
+    Indicator("us_walcl",    "연준 총자산",        "liquidity", "fred", "WALCL", unit="T$", decimals=2, scale=1e-6, up_is_good=None, freq="W",
+              note="연준 대차대조표(조달러). 확대=유동성 공급"),
+    Indicator("us_rrp",      "역레포(ON RRP)",     "liquidity", "fred", "RRPONTSYD", unit="T$", decimals=3, scale=1e-3, up_is_good=None, freq="D",
+              note="익일물 역레포 잔액(조달러). 시중 잉여유동성 흡수분"),
+    Indicator("us_tga",      "재무부 일반계정(TGA)","liquidity", "fred", "WTREGEN", unit="T$", decimals=3, scale=1e-6, up_is_good=None, freq="W",
+              note="재무부 현금잔고(조달러). 증가=시중 유동성 흡수"),
+    Indicator("us_net_liq",  "순유동성(연준−RRP−TGA)","liquidity", "derived", "", unit="T$", decimals=2, up_is_good=None, freq="W",
+              derived=("us_walcl", "-", "us_rrp", "-", "us_tga"),
+              note="연준자산−역레포−TGA. 시중 실질 유동성 근사(위험자산과 동행 경향)"),
+    Indicator("us_m2",       "M2 통화량",          "liquidity", "fred", "M2SL", unit="T$", decimals=2, scale=1e-3, up_is_good=None, freq="M",
+              note="광의통화 M2(조달러)"),
 
     # ── 한국 거시 (ECOS; 키 있을 때만 활성) ──
     Indicator("kr_base_rate", "한국 기준금리", "kr_macro", "ecos", "722Y001",
@@ -213,10 +256,13 @@ def indicators_for_source(source: str) -> list[Indicator]:
 _PRIORITY_1 = {
     "sp500", "nasdaq", "vix", "us10y", "us_real10y", "dxy", "us_fedfunds",
     "us_cpi_yoy", "us_10y2y", "us_hy_spread", "kospi", "usdkrw", "gold", "btc", "wti",
+    "us_t10y3m", "us_nfci", "us_net_liq",
 }
 _PRIORITY_3 = {
     "silver", "copper", "natgas", "us05y", "us13w", "us30y",
     "eurusd", "usdjpy", "usdcny", "eth", "shanghai", "eustoxx", "hangseng",
+    "xlk", "xlf", "xle", "xlv", "xli", "xly", "xlp", "xlu", "xlb", "xlre", "xlc",
+    "us_walcl", "us_rrp", "us_tga", "us_m2",
 }
 
 

@@ -293,6 +293,13 @@ def _do_run_inner(started: datetime, ts_utc: str, snapshot_id: int) -> dict:
         regime_snap = regime_mod.snapshot(30)
     except Exception:  # noqa: BLE001 — 레짐 계산 실패해도 브리핑은 진행
         regime_snap = None
+    if regime_snap:
+        r = regime_snap.get("regime") or {}
+        if r.get("score") is not None:
+            try:
+                repo.save_regime_score(snapshot_id, r["score"], r.get("tone", ""), r.get("short", ""))
+            except Exception:  # noqa: BLE001 — 점수 기록 실패가 수집을 막지 않게
+                pass
     logger.info("  - briefing 생성 중(claude -p)...")
     brief = briefing_mod.generate(quotes, news, events, now_kst,
                                   prior=prior_ctx, regime=regime_snap, now_utc=started)

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from . import repository as repo
+from .analysis import calendar_util
 from .analysis import regime as regime_mod
 from .analysis import stats as stats_mod
 from .collectors.base import ALL_COLLECTORS
@@ -160,6 +161,21 @@ def health_view(health_rows: list[dict]) -> list[dict]:
     return out
 
 
+_SURP_LABEL = {"beat": "예상상회 ▲", "miss": "예상하회 ▼", "inline": "부합"}
+
+
+def _calendar_view(rows: list[dict]) -> list[dict]:
+    """캘린더 행에 서프라이즈(실제 vs 예상) 표기 추가."""
+    out = []
+    for r in rows:
+        e = dict(r)
+        s = (calendar_util.surprise(e.get("actual"), e.get("forecast"))
+             if (e.get("actual") and e.get("forecast")) else None)
+        e["surprise"] = {"dir": s["dir"], "label": _SURP_LABEL[s["dir"]]} if s else None
+        out.append(e)
+    return out
+
+
 def _recent_alerts(limit: int = 6) -> list[dict]:
     out = []
     for e in repo.recent_source_events(limit):
@@ -193,10 +209,14 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
         else:
             briefing = cur_brief
 
-    try:
-        regime = regime_mod.detect_regime(20)
-    except Exception:  # noqa: BLE001
-        regime = None
+    # 레짐: 과거 스냅샷 조회면 '그 시점' 기록값, 최신이면 현재 재계산
+    if snapshot_id is not None and snap.get("regime_score") is not None:
+        regime = regime_mod.stored_regime_view(snap)
+    else:
+        try:
+            regime = regime_mod.detect_regime(20)
+        except Exception:  # noqa: BLE001
+            regime = None
 
     return {
         "empty": False,
@@ -204,7 +224,7 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
         "groups": build_groups(obs),
         "health": health_view(repo.get_health(sid)),
         "news": repo.recent_news(30),
-        "calendar": repo.upcoming_calendar(30),
+        "calendar": _calendar_view(repo.upcoming_calendar(30)),
         "briefing": briefing,
         "briefing_cached": briefing_cached,
         "regime": regime,

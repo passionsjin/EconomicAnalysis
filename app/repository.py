@@ -117,6 +117,30 @@ def save_briefing(snapshot_id: int, ts_utc: str, b: Briefing) -> int:
         return int(cur.lastrowid)
 
 
+def save_regime_score(snapshot_id: int, score: Optional[int], tone: str, short: str) -> None:
+    """수집 시점 레짐 점수를 스냅샷에 영속 기록(매번 재계산 대신 기록 보존)."""
+    if score is None:
+        return
+    with get_con() as con:
+        con.execute(
+            "UPDATE snapshots SET regime_score=?, regime_tone=?, regime_short=? WHERE id=?",
+            (int(score), tone, short, snapshot_id),
+        )
+
+
+def regime_score_history(limit: int = 240) -> list[dict]:
+    """기록된 레짐 점수 시계열(스냅샷별; 영속 기록). 최신순 조회 후 시간순 반환."""
+    with get_con() as con:
+        rows = con.execute(
+            "SELECT finished_utc, ts_utc, regime_score, regime_tone FROM snapshots "
+            "WHERE regime_score IS NOT NULL AND finished_utc IS NOT NULL "
+            "ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [{"ts": r["finished_utc"] or r["ts_utc"], "score": r["regime_score"], "tone": r["regime_tone"]}
+            for r in reversed(rows)]
+
+
 def prune(history_days: int) -> None:
     """오래된 이력/스냅샷 정리(무한 증가 방지).
 

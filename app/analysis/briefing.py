@@ -19,6 +19,7 @@ from ..config import (INDICATOR_BY_KEY, CATEGORIES, settings, BASE_DIR,
                       priority_of, source_tier)
 from ..models import Briefing, CalendarEvent, NewsItem, Quote
 from .stats import percentile_rank, zscore, _momentum_from, stat_window, risk_metrics
+from .calendar_util import surprise as cal_surprise
 
 _VALID_SENTIMENT = {"risk-on", "risk-off", "neutral", "mixed"}
 _CTRL = re.compile(r"[\r\n\t\x00-\x1f]")
@@ -171,12 +172,19 @@ def _calendar_block(events: list[CalendarEvent], limit: int = 12,
         return "(예정된 주요 발표 없음)"
     now = now_utc or datetime.now(timezone.utc)
 
+    _SURP = {"beat": " → 예상 상회", "miss": " → 예상 하회", "inline": " → 예상 부합"}
+
     def fmt(e: CalendarEvent, mark: str = "") -> str:
         when = (e.date or "")[:16].replace("T", " ")
         fc = f" 예상 {_san(e.forecast, 30)}" if e.forecast else ""
         pv = f" 이전 {_san(e.previous, 30)}" if e.previous else ""
         ac = f" 실제 {_san(e.actual, 30)}" if e.actual else ""
-        return f"  - {mark}{when}Z [{_san(e.country, 20)}] {_san(e.title)}{fc}{pv}{ac}"
+        sp = ""
+        if e.actual and e.forecast:
+            s = cal_surprise(e.actual, e.forecast)
+            if s:
+                sp = _SURP[s["dir"]]
+        return f"  - {mark}{when}Z [{_san(e.country, 20)}] {_san(e.title)}{fc}{pv}{ac}{sp}"
 
     imminent, later = [], []
     for e in hi:

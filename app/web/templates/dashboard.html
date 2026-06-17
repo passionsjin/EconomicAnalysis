@@ -183,6 +183,7 @@
             {% if e.forecast %}예상 {{ e.forecast }}{% endif %}
             {% if e.previous %}· 이전 {{ e.previous }}{% endif %}
             {% if e.actual %}· <b>실제 {{ e.actual }}</b>{% endif %}
+            {% if e.surprise %}<span class="surp {{ e.surprise.dir }}" title="실제 vs 예상">{{ e.surprise.label }}</span>{% endif %}
           </span>
         </div>
       </li>

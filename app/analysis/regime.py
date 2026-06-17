@@ -234,6 +234,26 @@ def detect_regime(window: int = 20) -> dict:
             "spx_window_chg": sig.get("equity", (None, None))[1], "window": window}
 
 
+def stored_regime_view(snap: dict) -> dict:
+    """과거 스냅샷에 기록된 레짐 점수로 '그 시점' 최소 뷰 구성(현재 재계산 대신).
+
+    과거 리포트(/report/{id})에서 배지가 '현재' 레짐을 보여주던 오류를 바로잡는다.
+    """
+    score = snap.get("regime_score")
+    tone = snap.get("regime_tone") or "warn"
+    short = snap.get("regime_short") or "—"
+    if tone == "good":
+        meaning = "투자자가 위험자산을 적극 사들이는 국면 (주가↑·변동성↓·신용/유동성 우호)."
+    elif tone == "bad":
+        meaning = "투자자가 안전자산으로 피신하는 국면 (주가↓·변동성↑·신용/금융여건 악화)."
+    else:
+        meaning = "위험 선호와 회피가 팽팽하거나 방향이 전환되는 국면."
+    tip = f"이 스냅샷 시점 기록된 위험선호 점수.\n{score}/100 {short} — {meaning}"
+    return {"label": short, "short": short, "tone": tone, "score": score,
+            "meaning": meaning, "tip": tip, "drivers": [], "components": [],
+            "vix": None, "hy_spread": None, "spx_window_chg": None, "window": 20}
+
+
 def regime_history(window: int = 20, span: int = 90) -> list[dict]:
     """최근 span 거래일의 위험선호 점수 추이(스파크라인용)."""
     axis, aligned = _load_aligned(window, span)

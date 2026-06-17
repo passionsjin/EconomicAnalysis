@@ -107,7 +107,8 @@ def api_regime(window: int = 20, span: int = 90):
     window = max(5, min(window, 60))
     span = max(20, min(span, 250))
     return {"current": regime_mod.detect_regime(window),
-            "history": regime_mod.regime_history(window, span)}
+            "history": regime_mod.regime_history(window, span),
+            "stored": repo.regime_score_history(240)}
 
 
 @app.get("/api/alerts")

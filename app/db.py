@@ -17,7 +17,10 @@ CREATE TABLE IF NOT EXISTS snapshots (
     ts_utc      TEXT NOT NULL,            -- 수집 시작 시각 (UTC ISO8601)
     finished_utc TEXT,
     ok_count    INTEGER DEFAULT 0,
-    fail_count  INTEGER DEFAULT 0
+    fail_count  INTEGER DEFAULT 0,
+    regime_score INTEGER,                 -- 수집 시점 위험선호 점수(0~100, 영속 기록)
+    regime_tone  TEXT,                    -- good/bad/warn
+    regime_short TEXT                     -- 표시명(예: '강한 위험선호')
 );
 
 CREATE TABLE IF NOT EXISTS observations (
@@ -112,6 +115,10 @@ def _migrate(con: sqlite3.Connection) -> None:
     cols = {r[1] for r in con.execute("PRAGMA table_info(news)").fetchall()}
     if "title_ko" not in cols:
         con.execute("ALTER TABLE news ADD COLUMN title_ko TEXT")
+    scols = {r[1] for r in con.execute("PRAGMA table_info(snapshots)").fetchall()}
+    for col, typ in (("regime_score", "INTEGER"), ("regime_tone", "TEXT"), ("regime_short", "TEXT")):
+        if col not in scols:
+            con.execute(f"ALTER TABLE snapshots ADD COLUMN {col} {typ}")
 
 
 def init_db() -> None:

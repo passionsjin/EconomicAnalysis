@@ -169,6 +169,10 @@ INDICATORS: list[Indicator] = [
     Indicator("us30y", "미 국채 30년", "rate", "yahoo", "^TYX", unit="%", decimals=3),
     Indicator("us05y", "미 국채 5년",  "rate", "yahoo", "^FVX", unit="%", decimals=3),
     Indicator("us13w", "미 국채 13주", "rate", "yahoo", "^IRX", unit="%", decimals=3),
+    Indicator("hyg",   "하이일드 ETF(HYG)",  "rate", "yahoo", "HYG", unit="$", decimals=2, up_is_good=None,
+              note="미 하이일드 회사채 ETF 가격(HYG/LQD 비율의 피연산)"),
+    Indicator("lqd",   "투자등급 ETF(LQD)",  "rate", "yahoo", "LQD", unit="$", decimals=2, up_is_good=None,
+              note="미 투자등급 회사채 ETF 가격(HYG/LQD 비율의 피연산)"),
 
     # ── 원자재 (Yahoo 선물) ──
     Indicator("wti",    "WTI 유가",  "commodity", "yahoo", "CL=F", unit="$", decimals=2),
@@ -192,6 +196,9 @@ INDICATORS: list[Indicator] = [
     Indicator("r_spx_gold",    "주식/금(S&P÷금)", "ratio", "derived", "", decimals=3,
               derived=("sp500", "/", "gold"), up_is_good=True,
               note="S&P500/금: 위험자산의 안전자산 대비 상대성과(상승=위험선호)"),
+    Indicator("r_hyg_lqd",     "신용 위험선호(HYG/LQD)", "ratio", "derived", "", decimals=4, up_is_good=True,
+              derived=("hyg", "/", "lqd"),
+              note="하이일드/투자등급 ETF 비율(가격 기반): 상승=신용 위험선호(HY 강세), 하락=위험회피"),
 
     # ── 미국 섹터 ETF (Yahoo; 섹터 로테이션 — 방어/경기민감 차별화) ──
     Indicator("xlk",  "기술",        "sector", "yahoo", "XLK",  decimals=2, up_is_good=True),
@@ -277,7 +284,7 @@ _PRIORITY_3 = {
     "silver", "copper", "natgas", "us05y", "us13w", "us30y",
     "eurusd", "usdjpy", "usdcny", "eth", "shanghai", "eustoxx", "hangseng",
     "xlk", "xlf", "xle", "xlv", "xli", "xly", "xlp", "xlu", "xlb", "xlre", "xlc",
-    "us_walcl", "us_rrp", "us_tga", "us_m2",
+    "us_walcl", "us_rrp", "us_tga", "us_m2", "hyg", "lqd",
 }
 
 

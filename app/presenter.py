@@ -103,7 +103,9 @@ def _indicator_view(ind: Indicator, obs: dict) -> dict:
         "as_of": row.get("as_of"),
         "stale": bool(st and st["stale"]),
         "age_days": st["age_days"] if st else None,
-        "percentile": ctx["percentile"] if ctx else None,   # 역사적 백분위(0~100)
+        "percentile": ctx["percentile"] if ctx else None,   # 기간내 백분위(0~100)
+        "pct_n": ctx["n"] if ctx else None,                  # 백분위 표본수
+        "pct_span": ctx["span"] if ctx else None,            # 백분위 실제 기간(예: '약 5년')
         "zscore": ctx["zscore"] if ctx else None,
         "anomaly": bool(ctx and ctx["anomaly"]),             # |z|≥3 통계적 이상치
         "momentum": mom,                                     # {w1,m1,m3,ytd} (일별만)

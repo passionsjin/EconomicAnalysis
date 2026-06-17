@@ -58,11 +58,12 @@ a:hover{text-decoration:underline}
 .banner.warn{background:var(--warn-bg);color:var(--warn);border-color:rgba(240,160,32,.3)}
 .banner.bad{background:var(--bad-bg);color:#ff6b75;border-color:rgba(234,57,67,.3)}
 
-/* ── 레짐 칩 ── */
-.hbadge.regime{font-weight:600}
+/* ── 시장 분위기(레짐) 칩 ── */
+.hbadge.regime{font-weight:600;cursor:help}
 .hbadge.regime.good{color:var(--good);border-color:rgba(22,199,132,.35)}
 .hbadge.regime.bad{color:var(--bad);border-color:rgba(234,57,67,.35)}
 .hbadge.regime.warn{color:var(--warn);border-color:rgba(240,160,32,.35)}
+.hbadge-help{font-size:10px;opacity:.6;font-weight:400}
 
 /* ── 상관 히트맵 ── */
 .corr-wrap{overflow:auto}

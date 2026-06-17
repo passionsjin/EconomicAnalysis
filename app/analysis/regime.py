@@ -100,14 +100,24 @@ def detect_regime(window: int = 20) -> dict:
             score -= 1; drivers.append(f"주식 {spx_chg:+.1f}%")
 
     if score >= 2:
-        label, tone = "위험선호(Risk-On)", "good"
+        label, short, tone = "위험선호(Risk-On)", "위험 선호", "good"
+        meaning = "투자자가 주식·암호화폐 같은 위험자산을 사들이는 국면 (주가↑·변동성↓·신용여건 양호)."
     elif score <= -2:
-        label, tone = "위험회피(Risk-Off)", "bad"
+        label, short, tone = "위험회피(Risk-Off)", "위험 회피", "bad"
+        meaning = "투자자가 국채·달러·금 같은 안전자산으로 피신하는 국면 (주가↓·변동성↑·신용여건 악화)."
     else:
-        label, tone = "중립/전환", "warn"
+        label, short, tone = "중립/전환", "중립", "warn"
+        meaning = "위험 선호와 회피가 팽팽하거나 방향이 바뀌는 국면 (뚜렷한 쏠림 없음)."
+
+    # 화면 툴팁: 개념 한 줄 + 현재 상태 의미 + 판정 근거
+    help_intro = ("시장 분위기 = 투자자들이 위험을 감수하는지(위험 선호) "
+                  "회피하는지(위험 회피)를 VIX(공포지수)·하이일드 신용스프레드·주가 추세로 자동 판정.")
+    driver_txt = ", ".join(drivers) if drivers else "특이 신호 없음"
+    tip = f"{help_intro}\n\n현재: {short} — {meaning}\n근거: {driver_txt}"
 
     return {
-        "label": label, "tone": tone, "score": score, "drivers": drivers,
+        "label": label, "short": short, "tone": tone, "score": score,
+        "meaning": meaning, "tip": tip, "drivers": drivers,
         "vix": vix, "hy_spread": hy, "spx_window_chg": spx_chg, "window": window,
     }
 

@@ -97,7 +97,7 @@ class EcosCollector(Collector):
                 quotes.append(Quote(
                     key=ind.key, value=value, prev_close=prev,
                     as_of=series[-1][0] + "T00:00:00+00:00",
-                    history=series[-settings.history_days:], ok=True,
+                    history=series[-settings.history_points:], ok=True,
                 ))
             except Exception as exc:  # noqa: BLE001
                 failed += 1

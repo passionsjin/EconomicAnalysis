@@ -16,9 +16,23 @@ from .base import Collector
 _HOSTS = ["https://query1.finance.yahoo.com", "https://query2.finance.yahoo.com"]
 
 
-def _fetch_symbol(symbol: str, days: int) -> dict:
+def _range_for(points: int) -> str:
+    """저장 목표 포인트 수 → Yahoo chart range(일봉 기준 근사).
+
+    백분위·z-score 룩백을 넉넉히 확보하려고 기본은 5년치를 받는다.
+    (1y≈250 거래일, 2y≈500, 5y≈1250)
+    """
+    if points > 1200:
+        return "5y"
+    if points > 480:
+        return "2y"
+    if points > 240:
+        return "1y"
+    return "6mo"
+
+
+def _fetch_symbol(symbol: str, rng: str) -> dict:
     """한 종목의 chart JSON 을 가져와 정규화. 실패 시 예외."""
-    rng = "1y" if days > 180 else "6mo"
     from urllib.parse import quote
 
     path = f"/v8/finance/chart/{quote(symbol, safe='')}"
@@ -92,8 +106,9 @@ class MarketsCollector(Collector):
         quotes: list[Quote] = []
         failed = 0
 
+        rng = _range_for(settings.history_points)
         with ThreadPoolExecutor(max_workers=8) as ex:
-            futures = {ex.submit(_fetch_symbol, ind.symbol, settings.history_days): ind for ind in inds}
+            futures = {ex.submit(_fetch_symbol, ind.symbol, rng): ind for ind in inds}
             for fut in as_completed(futures):
                 ind = futures[fut]
                 try:
@@ -103,7 +118,7 @@ class MarketsCollector(Collector):
                         raise ValueError("가격 없음")
                     quotes.append(Quote(
                         key=ind.key, value=price, prev_close=prev, as_of=as_of,
-                        history=hist[-settings.history_days:], ok=True,
+                        history=hist[-settings.history_points:], ok=True,
                     ))
                 except Exception as exc:  # noqa: BLE001
                     failed += 1

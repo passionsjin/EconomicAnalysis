@@ -6,11 +6,37 @@ history 시계열을 재활용해 '현재값의 의미'(분포 내 위치, 추�
 from __future__ import annotations
 
 import math
+from datetime import date
 
 from .. import repository as repo
 
 # 다기간 모멘텀 거래일 근사
 _PERIODS = {"w1": 5, "m1": 21, "m3": 63}
+
+# 백분위·z-score 룩백 윈도우(빈도별): 일별≈5년, 주별≈5년, 월별≈20년.
+# 실제 계산은 보유 이력 내에서만 — 데이터가 적으면 그만큼만 쓴다.
+_STAT_WINDOW = {"D": 1260, "W": 260, "M": 240}
+
+
+def stat_window(freq: str) -> int:
+    return _STAT_WINDOW.get(freq, 1260)
+
+
+def _span_label(dates: list[str]) -> str:
+    """표본의 실제 기간을 사람이 읽는 라벨로(첫~끝 날짜 차이). 백분위가 어느 기간 기준인지 정직하게."""
+    if len(dates) < 2:
+        return "보유 기간"
+    try:
+        d0 = date.fromisoformat(dates[0][:10])
+        d1 = date.fromisoformat(dates[-1][:10])
+    except ValueError:
+        return "보유 기간"
+    days = (d1 - d0).days
+    if days >= 730:
+        return f"약 {days // 365}년"
+    if days >= 90:
+        return f"약 {round(days / 30)}개월"
+    return f"약 {max(days, 1)}일"
 
 
 def _vals(series: list[dict]) -> list[float]:
@@ -72,22 +98,26 @@ def momentum(key: str) -> dict | None:
     return _momentum_from(vd)
 
 
-def enrich(key: str, value: float | None, freq: str, window: int = 252) -> dict:
-    """history 1회 조회로 백분위·z-score·이상치 + (일별)다기간 모멘텀을 함께 계산."""
-    series = repo.get_series(key, max(window, 300))
-    vals = _vals(series)
+def enrich(key: str, value: float | None, freq: str, window: int | None = None) -> dict:
+    """history 1회 조회로 백분위·z-score·이상치 + (일별)다기간 모멘텀을 함께 계산.
+
+    백분위/z-score 룩백은 빈도별(일≈5년/주≈5년/월≈20년)이며, 실제 보유 이력 내에서만
+    계산한다. ctx 에 표본수(n)와 실제 기간(span)을 함께 담아 '어느 기간 기준인지' 노출한다.
+    """
+    win = window if window is not None else stat_window(freq)
+    series = repo.get_series(key, max(win, 300))
+    dv = [(p["date"], p["value"]) for p in series if p.get("value") is not None]
     ctx = None
-    if len(vals) >= 12 and value is not None:
-        recent = vals[-window:]
-        z = zscore(value, recent)
+    if len(dv) >= 12 and value is not None:
+        recent = dv[-win:]
+        vals = [v for _d, v in recent]
+        z = zscore(value, vals)
         ctx = {
-            "percentile": percentile_rank(value, recent),
+            "percentile": percentile_rank(value, vals),
             "zscore": round(z, 2) if z is not None else None,
             "anomaly": bool(z is not None and abs(z) >= 3),
-            "min": min(recent), "max": max(recent), "n": len(recent),
+            "min": min(vals), "max": max(vals), "n": len(vals),
+            "span": _span_label([d for d, _ in recent]),
         }
-    mom = None
-    if freq == "D":
-        vd = [(p["date"], p["value"]) for p in series if p.get("value") is not None]
-        mom = _momentum_from(vd)
+    mom = _momentum_from(dv) if freq == "D" else None
     return {"ctx": ctx, "momentum": mom}

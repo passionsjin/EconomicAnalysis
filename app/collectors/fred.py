@@ -94,7 +94,7 @@ class FredCollector(Collector):
                 series = _yoy(series)
             if not series:
                 raise ValueError("데이터 없음")
-            series = series[-settings.history_days * 2:]  # 충분히 보관(월별 대비)
+            series = series[-settings.history_points:]  # 다년 보관(일별≈5년/월별 다년) — 백분위 룩백 확보
             value = series[-1][1]
             prev = series[-2][1] if len(series) >= 2 else None
             as_of = series[-1][0]

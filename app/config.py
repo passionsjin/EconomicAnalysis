@@ -75,7 +75,9 @@ class Settings:
 
     request_timeout: int = _i("REQUEST_TIMEOUT", 20)
     history_days: int = _i("HISTORY_DAYS", 120)        # 스냅샷/뉴스 보관 기준(일)
-    history_points: int = _i("HISTORY_POINTS", 400)    # 차트 이력: 키별 최근 N개 보존(일/월 빈도 무관)
+    # 차트/통계 이력: 키별 최근 N개 보존(일/월 빈도 무관). 일별 ≈5년치.
+    # 백분위·z-score 룩백의 상한이기도 함(이 값이 작으면 '역사적' 맥락이 짧아진다).
+    history_points: int = _i("HISTORY_POINTS", 1300)
 
     db_path: Path = BASE_DIR / "data" / "economic.db"
     web_dir: Path = BASE_DIR / "app" / "web"

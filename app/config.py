@@ -63,7 +63,7 @@ class Settings:
     enable_llm: bool = _b("ENABLE_LLM_BRIEFING", True)
     claude_bin: str = os.getenv("CLAUDE_BIN", "").strip()
     claude_model: str = os.getenv("CLAUDE_MODEL", "").strip()
-    llm_timeout: int = _i("LLM_TIMEOUT", 180)
+    llm_timeout: int = _i("LLM_TIMEOUT", 300)   # 큰 프롬프트 브리핑이 ~130-170s 걸려 180은 빡빡
 
     # 뉴스 영문→한글 번역(claude -p, 신규 항목만 캐시). 실패 시 원문 표시.
     enable_news_translation: bool = _b("ENABLE_NEWS_TRANSLATION", True)

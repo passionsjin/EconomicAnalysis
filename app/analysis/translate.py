@@ -53,7 +53,7 @@ def translate_titles(titles: list[str], timeout: int | None = None) -> list[str]
     cmd = _command(exe, model)
 
     try:
-        rc, stdout, stderr = _run_cli(cmd, prompt, timeout or settings.translate_timeout)
+        rc, stdout, stderr = _run_cli(cmd, prompt, timeout or settings.translate_timeout, label="뉴스 번역")
     except Exception:  # noqa: BLE001 — 번역 실패가 수집을 막으면 안 됨
         return out
     if rc != 0 or not (stdout or "").strip():

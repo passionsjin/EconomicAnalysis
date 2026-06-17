@@ -12,6 +12,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -358,13 +359,26 @@ def _kill_tree(proc: subprocess.Popen) -> None:
             pass
 
 
-def _run_cli(cmd: list[str], prompt: str, timeout: int) -> tuple[int, str, str]:
-    """claude CLI 호출 → (returncode, stdout, stderr). 타임아웃 시 자식 트리 종료."""
+def _run_cli(cmd: list[str], prompt: str, timeout: int, label: str = "브리핑") -> tuple[int, str, str]:
+    """claude CLI 호출 → (returncode, stdout, stderr). 타임아웃 시 자식 트리 종료.
+
+    수십~수백초 걸리는 LLM 호출 동안 30초마다 진행 하트비트를 로그해
+    '멈춘 것처럼' 보이지 않게 한다(실제로는 모델이 생성 중).
+    """
     kw = dict(stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
               cwd=str(BASE_DIR), env={**os.environ, "PYTHONUTF8": "1"})
     if os.name != "nt":
         kw["start_new_session"] = True  # killpg 대상 프로세스 그룹 분리
     proc = subprocess.Popen(cmd, **kw)
+    _stop = threading.Event()
+
+    def _heartbeat() -> None:
+        s = 0
+        while not _stop.wait(30):
+            s += 30
+            logger.info("    - %s 생성 중... (%ds 경과 / 최대 %ds)", label, s, timeout)
+
+    threading.Thread(target=_heartbeat, name="llm-heartbeat", daemon=True).start()
     try:
         out, err = proc.communicate(input=prompt.encode("utf-8"), timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -374,6 +388,8 @@ def _run_cli(cmd: list[str], prompt: str, timeout: int) -> tuple[int, str, str]:
         except Exception:  # noqa: BLE001
             pass
         raise
+    finally:
+        _stop.set()
     return proc.returncode, out.decode("utf-8", "replace"), err.decode("utf-8", "replace")
 
 

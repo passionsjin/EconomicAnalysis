@@ -229,3 +229,46 @@ table.corr td{padding:5px 7px;text-align:center;color:#e8edf5;border:1px solid v
   body{padding:0 12px 40px}
   .topbar{flex-direction:column;align-items:flex-start}
 }
+
+/* ── 신호등 배너(한눈 시장 스탠스) ── */
+.signal-banner{display:flex;align-items:center;gap:16px;padding:14px 18px;border-radius:14px;
+  margin:0 0 16px;border:1px solid var(--line);background:var(--card);box-shadow:var(--shadow);cursor:help}
+.signal-banner.good{border-color:rgba(22,199,132,.4);background:linear-gradient(135deg,var(--good-bg),var(--card) 55%)}
+.signal-banner.bad{border-color:rgba(234,57,67,.4);background:linear-gradient(135deg,var(--bad-bg),var(--card) 55%)}
+.signal-banner.warn{border-color:rgba(240,160,32,.4);background:linear-gradient(135deg,var(--warn-bg),var(--card) 55%)}
+.sig-dot{width:30px;height:30px;border-radius:50%;flex:none;background:var(--neutral)}
+.signal-banner.good .sig-dot{background:var(--good);box-shadow:0 0 14px 2px rgba(22,199,132,.55)}
+.signal-banner.bad .sig-dot{background:var(--bad);box-shadow:0 0 14px 2px rgba(234,57,67,.55)}
+.signal-banner.warn .sig-dot{background:var(--warn);box-shadow:0 0 14px 2px rgba(240,160,32,.55)}
+.sig-main{flex:1;min-width:0}
+.sig-stance{font-size:18px;font-weight:700;letter-spacing:-.2px}
+.signal-banner.good .sig-stance{color:var(--good)}
+.signal-banner.bad .sig-stance{color:var(--bad)}
+.signal-banner.warn .sig-stance{color:var(--warn)}
+.sig-sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+.sig-sub b{color:var(--txt);font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:13.5px}
+.sig-delta.up{color:var(--good);font-weight:600} .sig-delta.down{color:var(--bad);font-weight:600}
+.sig-drivers{font-size:11px;color:var(--muted2);margin-top:5px}
+.sig-meaning{max-width:340px;font-size:11.5px;color:var(--muted);text-align:right;line-height:1.5}
+
+/* ── 원화 환산 토글(CSS로 native↔krw 전환) ── */
+.v-krw,.chg.krw{display:none}
+body.krw-on .ind[data-krw="1"] .v-native,
+body.krw-on .ind[data-krw="1"] .chg.native{display:none}
+body.krw-on .ind[data-krw="1"] .v-krw{display:inline}
+body.krw-on .ind[data-krw="1"] .chg.krw{display:inline}
+.chg.krw{color:var(--neutral)}
+.chg.krw.good{color:var(--good)} .chg.krw.bad{color:var(--bad)}
+
+/* ── 백분위 직관 라벨 색상 ── */
+.pctbar.lvl-vh>em{color:var(--warn)}
+.pctbar.lvl-vl>em{color:var(--accent)}
+.pctbar.lvl-h>em,.pctbar.lvl-l>em{color:#aab4c6}
+
+/* ── so-what 함의 툴팁 ── */
+.sowhat{cursor:help;font-size:10.5px;opacity:.85}
+.sowhat:hover{opacity:1}
+
+@media(max-width:760px){
+  .sig-meaning{display:none}
+}

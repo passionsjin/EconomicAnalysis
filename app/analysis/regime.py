@@ -181,6 +181,15 @@ def _classify(score: int) -> tuple[str, str, str]:
     return "강한 위험회피(Strong Risk-Off)", "강한 위험회피", "bad"
 
 
+def _stance(score: int) -> tuple[str, str]:
+    """위험선호 점수 → 한눈 포지션 스탠스(공격/중립/방어) + 신호등 톤."""
+    if score >= 58:
+        return "공격적 (위험선호 우위)", "good"
+    if score >= 43:
+        return "중립 (관망)", "warn"
+    return "방어적 (위험회피 우위)", "bad"
+
+
 def _fmt_sig(name: str, v: float) -> str:
     return {
         "vix": f"VIX {v:.1f}", "hy": f"HY {v:.2f}%", "nfci": f"NFCI {v:+.2f}",
@@ -198,13 +207,19 @@ def _empty_regime(window: int) -> dict:
 
 def detect_regime(window: int = 20) -> dict:
     """다중 신호 합성 0~100 위험선호 점수로 시장 분위기 판정(레짐 v2)."""
-    axis, aligned = _load_aligned(window, span=1)
+    axis, aligned = _load_aligned(window, span=2)   # span=2: 직전 거래일 점수까지 산출(어제 대비)
     if not axis:
         return _empty_regime(window)
     sig = _signals_at(aligned, len(axis) - 1, window)
     score, _wavg = _composite(sig)
     if score is None:
         return _empty_regime(window)
+
+    prev_score = None
+    if len(axis) >= 2:
+        prev_score, _ = _composite(_signals_at(aligned, len(axis) - 2, window))
+    delta = (score - prev_score) if prev_score is not None else None
+    stance, stance_tone = _stance(score)
 
     label, short, tone = _classify(score)
     ranked = sorted(sig.items(), key=lambda kv: abs(_SIG_WEIGHTS.get(kv[0], 0) * kv[1][0]),
@@ -228,6 +243,8 @@ def detect_regime(window: int = 20) -> dict:
     tip = f"{intro}\n\n현재: {score}/100 {short} — {meaning}\n주요 동인: {driver_txt}"
 
     return {"label": label, "short": short, "tone": tone, "score": score,
+            "prev_score": prev_score, "delta": delta,
+            "stance": stance, "stance_tone": stance_tone,
             "meaning": meaning, "tip": tip, "drivers": drivers, "components": components,
             "vix": sig.get("vix", (None, None))[1],
             "hy_spread": sig.get("hy", (None, None))[1],
@@ -249,7 +266,9 @@ def stored_regime_view(snap: dict) -> dict:
     else:
         meaning = "위험 선호와 회피가 팽팽하거나 방향이 전환되는 국면."
     tip = f"이 스냅샷 시점 기록된 위험선호 점수.\n{score}/100 {short} — {meaning}"
+    stance, stance_tone = _stance(score) if score is not None else ("—", tone)
     return {"label": short, "short": short, "tone": tone, "score": score,
+            "prev_score": None, "delta": None, "stance": stance, "stance_tone": stance_tone,
             "meaning": meaning, "tip": tip, "drivers": [], "components": [],
             "vix": None, "hy_spread": None, "spx_window_chg": None, "window": 20}
 

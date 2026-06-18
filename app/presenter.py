@@ -10,7 +10,7 @@ from .analysis import regime as regime_mod
 from .analysis import stats as stats_mod
 from .collectors.base import ALL_COLLECTORS
 from .config import (CATEGORIES, INDICATORS, INDICATOR_BY_KEY, Indicator,
-                     priority_of, source_tier)
+                     priority_of, source_tier, is_krw_convertible, so_what)
 
 # 빈도별 신선도 임계(시간) — 초과 시 'stale' 경고. 월별은 발표주기 고려해 넉넉히.
 _STALE_HOURS = {"D": 24 * 3, "W": 24 * 10, "M": 24 * 55}
@@ -45,6 +45,59 @@ def fmt_value(ind: Indicator, value: Optional[float]) -> str:
     return s
 
 
+def _fmt_krw(v: Optional[float]) -> str:
+    """원화 환산 금액을 만/억 단위로 가독화(예: 7,450,000 → ₩745만, 1.3e8 → ₩1.30억)."""
+    if v is None:
+        return "—"
+    a = abs(v)
+    if a >= 1e8:
+        return f"₩{v / 1e8:,.2f}억"
+    if a >= 1e4:
+        return f"₩{v / 1e4:,.0f}만"
+    return f"₩{v:,.0f}"
+
+
+def _pct_label(pct: Optional[float]) -> tuple[Optional[str], Optional[str]]:
+    """백분위(0~100) → (직관 라벨, 색상 레벨코드). 자기 역사 범위 내 위치를 평이하게."""
+    if pct is None:
+        return None, None
+    if pct >= 90:
+        return "매우 높음", "vh"
+    if pct >= 70:
+        return "높음", "h"
+    if pct > 30:
+        return "보통", "m"
+    if pct > 10:
+        return "낮음", "l"
+    return "매우 낮음", "vl"
+
+
+def _krw_rates(obs: dict) -> dict:
+    """관측값에서 호가통화→원화 환율(현재, 직전)을 구성. USD/JPY/EUR/CNY 지원(HKD 등 제외)."""
+    def vp(k):
+        r = obs.get(k) or {}
+        v, c = r.get("value"), r.get("change")
+        return v, ((v - c) if (v is not None and c is not None) else None)
+
+    usdkrw, usdkrw_p = vp("usdkrw")
+    usdjpy, usdjpy_p = vp("usdjpy")
+    eurusd, eurusd_p = vp("eurusd")
+    usdcny, usdcny_p = vp("usdcny")
+    rates: dict = {"KRW": (1.0, 1.0)}
+    if usdkrw:
+        rates["USD"] = (usdkrw, usdkrw_p)
+        if usdjpy:
+            rates["JPY"] = (usdkrw / usdjpy,
+                            (usdkrw_p / usdjpy_p) if (usdkrw_p and usdjpy_p) else None)
+        if eurusd:
+            rates["EUR"] = (eurusd * usdkrw,
+                            (eurusd_p * usdkrw_p) if (eurusd_p and usdkrw_p) else None)
+        if usdcny:
+            rates["CNY"] = (usdkrw / usdcny,
+                            (usdkrw_p / usdcny_p) if (usdkrw_p and usdcny_p) else None)
+    return rates
+
+
 def _tone(ind: Indicator, change: Optional[float]) -> str:
     """색상 톤: good(녹)/bad(적)/neutral(회)."""
     if change is None or change == 0:
@@ -57,7 +110,7 @@ def _tone(ind: Indicator, change: Optional[float]) -> str:
     return "neutral"
 
 
-def _indicator_view(ind: Indicator, obs: dict) -> dict:
+def _indicator_view(ind: Indicator, obs: dict, rates: Optional[dict] = None) -> dict:
     row = obs.get(ind.key) or {}
     ok = bool(row.get("ok", 0)) and row.get("value") is not None
     value = row.get("value")
@@ -83,6 +136,26 @@ def _indicator_view(ind: Indicator, obs: dict) -> dict:
     enr = (stats_mod.enrich(ind.key, value, ind.freq, unit=ind.unit) if ok
            else {"ctx": None, "momentum": None, "risk": None})
     ctx, mom, risk = enr["ctx"], enr["momentum"], enr.get("risk")
+
+    # 백분위 → 비전문가용 직관 라벨/레벨(매우 낮음~매우 높음)
+    pct_label, pct_level = _pct_label(ctx["percentile"] if ctx else None)
+
+    # 원화 환산(보유 가능한 가격자산 + 환율 보유 시): 값·등락 모두 FX 포함
+    krw = False
+    krw_value_fmt = krw_value_exact = krw_change_main_fmt = krw_tone = ""
+    if ok and rates and is_krw_convertible(ind.key) and ind.ccy in rates:
+        rate, rate_prev = rates[ind.ccy]
+        if rate:
+            krw = True
+            kv = value * rate
+            krw_value_fmt = _fmt_krw(kv)
+            krw_value_exact = f"₩{kv:,.0f}"
+            asset_prev = (value - change) if change is not None else None
+            if asset_prev and rate_prev:
+                kpct = (kv / (asset_prev * rate_prev) - 1) * 100
+                krw_change_main_fmt = f"{kpct:+.2f}%"
+                krw_tone = _tone(ind, kpct)
+
     return {
         "key": ind.key,
         "label": ind.label,
@@ -108,6 +181,8 @@ def _indicator_view(ind: Indicator, obs: dict) -> dict:
         "percentile": ctx["percentile"] if ctx else None,   # 기간내 백분위(0~100)
         "pct_n": ctx["n"] if ctx else None,                  # 백분위 표본수
         "pct_span": ctx["span"] if ctx else None,            # 백분위 실제 기간(예: '약 5년')
+        "pct_label": pct_label,                              # 직관 라벨(매우 낮음~매우 높음)
+        "pct_level": pct_level,                              # 색상 레벨(vl/l/m/h/vh)
         "zscore": ctx["zscore"] if ctx else None,
         "anomaly": bool(ctx and ctx["anomaly"]),             # |z|≥3 통계적 이상치
         "momentum": mom,                                     # {w1,m1,m3,ytd} (일별만)
@@ -118,14 +193,20 @@ def _indicator_view(ind: Indicator, obs: dict) -> dict:
         "dist_low": risk.get("dist_low") if risk else None,
         "hi52": risk.get("hi") if risk else None,
         "lo52": risk.get("lo") if risk else None,
+        "krw": krw,                                          # 원화 환산 가능 여부
+        "krw_value_fmt": krw_value_fmt,                      # ₩만/억 가독화
+        "krw_value_exact": krw_value_exact,                  # ₩원 단위(툴팁)
+        "krw_change_main_fmt": krw_change_main_fmt,          # 원화기준 등락%(FX 포함)
+        "krw_tone": krw_tone,
+        "so_what": so_what(ind.key),                         # 핵심지표 한 줄 함의
         "error": row.get("error"),
     }
 
 
-def build_groups(obs: dict) -> list[dict]:
+def build_groups(obs: dict, rates: Optional[dict] = None) -> list[dict]:
     groups = []
     for cat_key, cat_label in CATEGORIES.items():
-        items = [_indicator_view(ind, obs) for ind in INDICATORS if ind.category == cat_key]
+        items = [_indicator_view(ind, obs, rates) for ind in INDICATORS if ind.category == cat_key]
         if items:
             groups.append({"key": cat_key, "label": cat_label, "items": items})
     return groups
@@ -221,7 +302,7 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
     return {
         "empty": False,
         "snapshot": snap,
-        "groups": build_groups(obs),
+        "groups": build_groups(obs, _krw_rates(obs)),
         "health": health_view(repo.get_health(sid)),
         "news": repo.recent_news(30),
         "calendar": _calendar_view(repo.upcoming_calendar(30)),

@@ -124,6 +124,7 @@ class Indicator:
     unit: str = ""                 # "", "%", "P", "천명", "원" 등
     decimals: int = 2              # 표시 소수 자리
     scale: float = 1.0             # 원시값에 곱하는 배율(FRED 수집·derived 파생에 적용; 예 백만$→조$=1e-6, 비율 가독화 ×1000)
+    ccy: str = "USD"               # 호가 통화(원화 환산용). 비USD 자산만 명시(KRW/JPY/EUR/CNY/HKD)
     # 값이 오르면 긍정(green)인지(주가) 단순 중립인지. 화면 색상 힌트.
     up_is_good: Optional[bool] = None
     # FRED 변환: None | "yoy"(전년동월대비 %) — 지수 시리즈를 등락률로
@@ -143,12 +144,12 @@ INDICATORS: list[Indicator] = [
     Indicator("sp500",   "S&P 500",      "equity", "yahoo", "^GSPC",  decimals=2, up_is_good=True),
     Indicator("nasdaq",  "나스닥 종합",   "equity", "yahoo", "^IXIC",  decimals=2, up_is_good=True),
     Indicator("dow",     "다우존스",      "equity", "yahoo", "^DJI",   decimals=2, up_is_good=True),
-    Indicator("kospi",   "코스피",        "equity", "yahoo", "^KS11",  decimals=2, up_is_good=True),
-    Indicator("kosdaq",  "코스닥",        "equity", "yahoo", "^KQ11",  decimals=2, up_is_good=True),
-    Indicator("nikkei",  "닛케이 225",    "equity", "yahoo", "^N225",  decimals=2, up_is_good=True),
-    Indicator("hangseng","항셍",          "equity", "yahoo", "^HSI",   decimals=2, up_is_good=True),
-    Indicator("eustoxx", "유로스톡스 50", "equity", "yahoo", "^STOXX50E", decimals=2, up_is_good=True),
-    Indicator("shanghai","상하이 종합",   "equity", "yahoo", "000001.SS", decimals=2, up_is_good=True),
+    Indicator("kospi",   "코스피",        "equity", "yahoo", "^KS11",  decimals=2, up_is_good=True, ccy="KRW"),
+    Indicator("kosdaq",  "코스닥",        "equity", "yahoo", "^KQ11",  decimals=2, up_is_good=True, ccy="KRW"),
+    Indicator("nikkei",  "닛케이 225",    "equity", "yahoo", "^N225",  decimals=2, up_is_good=True, ccy="JPY"),
+    Indicator("hangseng","항셍",          "equity", "yahoo", "^HSI",   decimals=2, up_is_good=True, ccy="HKD"),
+    Indicator("eustoxx", "유로스톡스 50", "equity", "yahoo", "^STOXX50E", decimals=2, up_is_good=True, ccy="EUR"),
+    Indicator("shanghai","상하이 종합",   "equity", "yahoo", "000001.SS", decimals=2, up_is_good=True, ccy="CNY"),
 
     # ── 변동성 ──
     Indicator("vix", "VIX 공포지수", "volatility", "yahoo", "^VIX", decimals=2, up_is_good=False,
@@ -303,3 +304,45 @@ _SOURCE_TIER = {"yahoo": "시장", "fred": "공식", "ecos": "공식", "derived"
 def source_tier(key: str) -> str:
     ind = INDICATOR_BY_KEY.get(key)
     return _SOURCE_TIER.get(ind.source, "—") if ind else "—"
+
+
+# ── 원화 환산 ──
+# 보유 가능한 '가격 자산'만 환산 대상(금리·환율쌍·거시·유동성·비율 제외).
+KRW_CONVERTIBLE_CATEGORIES = {"equity", "sector", "commodity", "crypto"}
+
+
+def is_krw_convertible(key: str) -> bool:
+    """원화 환산 표시 대상인가(가격자산 + 비KRW 호가)."""
+    ind = INDICATOR_BY_KEY.get(key)
+    return bool(ind and ind.category in KRW_CONVERTIBLE_CATEGORIES and ind.ccy != "KRW")
+
+
+# ── 'so what' 한 줄 함의(핵심 지표) — 비전문가용 행동/해석 힌트 툴팁 ──
+_SO_WHAT = {
+    "vix": "급등 = 위험회피 신호 → 주식 비중 점검·헤지/현금 고려",
+    "us10y": "상승 = 할인율↑ → 성장주·채권 부담, 가치주·달러 우호",
+    "us_real10y": "실질금리 상승 = 금·성장주 역풍, 달러 강세 요인",
+    "dxy": "달러 강세 = 신흥국·원자재·코스피 부담, 원화 약세 압력",
+    "usdkrw": "상승(원화 약세) = 보유 해외자산 원화가치↑·수입물가↑",
+    "us_hy_spread": "급확대 = 신용 스트레스·경기불안 → 위험자산 축소 신호",
+    "us_hyig": "확대 = 순수 신용위험 상승(위험회피), 축소 = 위험선호",
+    "us_10y2y": "역전(음수) = 침체 선행 경고(평균 12~18개월 시차)",
+    "us_t10y3m": "연준 선호 침체지표 — 음수 지속 시 경계",
+    "us_nfci": "양수 = 금융여건 긴축(역풍), 음수 = 완화(순풍)",
+    "us_net_liq": "증가 = 시중 유동성 확대(위험자산 우호), 감소 = 긴축",
+    "us_cpi_yoy": "높을수록 연준 긴축 압력 → 금리·달러↑, 자산 부담",
+    "us_core_pce": "연준이 가장 주시하는 물가 — 높으면 인하 지연",
+    "us_fedfunds": "정책금리 — 인상=긴축(자산 부담), 인하=완화(우호)",
+    "gold": "실질금리·달러와 역행 — 위기·인플레 헤지 자산",
+    "btc": "위험자산 성격 강함 — 위험선호 국면에 민감·변동성 큼",
+    "copper": "구리=경기 바로미터('닥터 코퍼') — 상승=성장 기대",
+    "r_copper_gold": "상승 = 경기·성장 기대(금리 동행), 하락 = 둔화·안전선호",
+    "wti": "급등 = 인플레·비용 압력, 급락 = 수요 둔화 우려",
+    "kospi": "외국인 수급·반도체·달러에 민감 — 글로벌 위험선호의 베타",
+    "sp500": "글로벌 위험자산 벤치마크 — 추세·시장폭과 함께 판단",
+}
+
+
+def so_what(key: str) -> str:
+    """핵심 지표의 '그래서 뭘 보나' 한 줄 함의(없으면 빈 문자열)."""
+    return _SO_WHAT.get(key, "")

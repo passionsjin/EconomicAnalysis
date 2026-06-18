@@ -58,6 +58,23 @@
   </section>
 {% else %}
 
+{# ───────── 신호등: 한눈 시장 스탠스(레짐 점수 기반) ───────── #}
+{% if d.regime and d.regime.score is not none %}
+{% set rg = d.regime %}
+<section class="signal-banner {{ rg.stance_tone or rg.tone }}" title="{{ rg.tip }}">
+  <span class="sig-dot"></span>
+  <div class="sig-main">
+    <div class="sig-stance">{{ rg.stance or rg.short }}</div>
+    <div class="sig-sub">위험선호 <b>{{ rg.score }}</b>/100
+      {% if rg.delta is not none %} · 어제比 <span class="sig-delta {{ 'up' if rg.delta > 0 else 'down' if rg.delta < 0 else '' }}">{{ '%+d'|format(rg.delta) }}</span>{% endif %}
+      {% if rg.short and rg.short not in rg.stance %} · {{ rg.short }}{% endif %}
+    </div>
+    {% if rg.drivers %}<div class="sig-drivers">동인: {{ rg.drivers[:3]|join(' · ') }}</div>{% endif %}
+  </div>
+  <div class="sig-meaning">{{ rg.meaning }}</div>
+</section>
+{% endif %}
+
 {# ───────── LLM 브리핑 ───────── #}
 <section class="briefing card">
   {% if d.briefing and d.briefing.ok %}
@@ -87,6 +104,7 @@
   <input type="search" id="ind-search" placeholder="🔍 지표 검색…" oninput="filterIndicators()">
   <label class="auto"><input type="checkbox" id="fav-only" onchange="filterIndicators()"> 즐겨찾기만</label>
   <label class="auto"><input type="checkbox" id="prio-only" onchange="filterIndicators()"> 핵심지표만</label>
+  <label class="auto" title="해외 가격자산을 원화로 환산 표시(등락도 환율 포함)"><input type="checkbox" id="krw-toggle" onchange="toggleKrw()"> ₩ 원화환산</label>
   <span class="spacer"></span>
   <button class="btn ghost" onclick="exportCsv()" title="표시 중인 지표를 CSV로">⬇ CSV</button>
 </div>
@@ -98,30 +116,32 @@
   <div class="grid">
     {% for it in g['items'] %}
     <div class="ind card {{ it.tone }} {% if not it.ok %}stale{% endif %}{% if it.anomaly %} anomaly{% endif %}"
-         data-key="{{ it.key }}" data-label="{{ it.label }}" data-cat="{{ it.category }}" data-prio="{{ it.priority }}"
+         data-key="{{ it.key }}" data-label="{{ it.label }}" data-cat="{{ it.category }}" data-prio="{{ it.priority }}" data-krw="{{ '1' if it.krw else '0' }}"
          onclick="openChart('{{ it.key }}', '{{ it.label }}', '{{ it.unit }}')">
       <div class="ind-top">
         <span class="ind-label">{{ it.label }}{% if it.tier == '파생' %}<span class="tierdot" title="파생 계산 지표">∆</span>{% endif %}</span>
         <span class="ind-top-r">
-          {% if it.ok and it.has_change %}<span class="chg {{ it.tone }} {{ it.sign }}">{{ it.change_main_fmt }}</span>{% endif %}
+          {% if it.ok and it.has_change %}<span class="chg native {{ it.tone }} {{ it.sign }}">{{ it.change_main_fmt }}</span>{% endif %}
+          {% if it.ok and it.krw and it.krw_change_main_fmt %}<span class="chg krw {{ it.krw_tone }}" title="원화 기준 등락(환율 포함)">{{ it.krw_change_main_fmt }}</span>{% endif %}
           <button class="fav" title="즐겨찾기" onclick="toggleFav(event,'{{ it.key }}')">★</button>
         </span>
       </div>
-      <div class="ind-value">{{ it.value_fmt }}{% if it.anomaly %}<span class="anom" title="통계적 이상치(|z|≥3) — 데이터 확인">⚠</span>{% endif %}</div>
+      <div class="ind-value"><span class="v-native">{{ it.value_fmt }}</span>{% if it.krw %}<span class="v-krw" title="{{ it.krw_value_exact }}">{{ it.krw_value_fmt }}</span>{% endif %}{% if it.anomaly %}<span class="anom" title="통계적 이상치(|z|≥3) — 데이터 확인">⚠</span>{% endif %}</div>
       <div class="ind-foot">
         {% if it.ok %}
           {% if it.has_change %}<span class="basis" title="변화 기준">{{ it.basis }}</span>{% endif %}
           {% if it.change_sub_fmt %}<span class="chgabs {{ it.tone }}">{{ it.change_sub_fmt }}</span>{% endif %}
           {% if it.momentum and it.momentum.m1 is not none %}<span class="mom" title="1개월 모멘텀">1M {{ '%+.1f'|format(it.momentum.m1) }}%</span>{% endif %}
           {% if it.stale %}<span class="agewarn" title="데이터가 오래됨(신선도 경고)">⏱{{ it.age_days }}일전</span>{% endif %}
+          {% if it.so_what %}<span class="sowhat" title="{{ it.so_what }}">💡</span>{% endif %}
           {% if it.note %}<span class="note" title="{{ it.note }}">ⓘ</span>{% endif %}
         {% else %}
           <span class="err" title="{{ it.error }}">수집 실패</span>
         {% endif %}
       </div>
       {% if it.ok and it.percentile is not none %}
-      <div class="pctbar" title="백분위 {{ it.percentile }}%ile · 최근 {{ it.pct_span }} 분포 내 위치(표본 {{ it.pct_n }}개) · 100%ile=기간 최고, 0%ile=기간 최저">
-        <span style="width:{{ it.percentile }}%"></span><em>{{ it.percentile }}%ile</em>
+      <div class="pctbar lvl-{{ it.pct_level }}" title="{{ it.pct_label }} — 백분위 {{ it.percentile }}%ile · 최근 {{ it.pct_span }} 분포 내 위치(표본 {{ it.pct_n }}개) · 100%ile=기간 최고, 0%ile=기간 최저">
+        <span style="width:{{ it.percentile }}%"></span><em>{{ it.pct_label }} · {{ it.percentile }}%ile</em>
       </div>
       {% endif %}
       {% if it.ok and (it.dist_high is not none or it.rvol is not none) %}

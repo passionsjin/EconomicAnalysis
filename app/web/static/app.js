@@ -150,7 +150,7 @@ function exportCsv() {
     if (c.style.display === "none") return;
     rows.push([
       c.dataset.label || "",
-      (c.querySelector(".ind-value")?.textContent || "").trim(),
+      (c.querySelector(".v-native")?.textContent || c.querySelector(".ind-value")?.textContent || "").trim(),
       (c.querySelector(".chg")?.textContent || "").trim(),
       (c.querySelector(".pctbar em")?.textContent || "").trim(),
       c.dataset.cat || "",
@@ -161,6 +161,20 @@ function exportCsv() {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = "indicators.csv"; a.click();
   URL.revokeObjectURL(a.href);
+}
+
+/* ── 원화 환산 토글(body.krw-on 클래스 → CSS가 native↔krw 전환) ── */
+function toggleKrw() {
+  const on = !!document.getElementById("krw-toggle")?.checked;
+  document.body.classList.toggle("krw-on", on);
+  try { localStorage.setItem("krwView", on ? "1" : "0"); } catch (e) {}
+}
+function restoreKrw() {
+  let on = false;
+  try { on = localStorage.getItem("krwView") === "1"; } catch (e) {}
+  const cb = document.getElementById("krw-toggle");
+  if (cb) cb.checked = on;
+  document.body.classList.toggle("krw-on", on);
 }
 
 /* ── 자산간 상관 히트맵 ── */
@@ -331,6 +345,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const sparks = document.querySelectorAll("canvas.spark");
   if (sparks.length) pool([...sparks], drawSpark, 6);
   applyFavs();
+  restoreKrw();
   renderCorrelations();
   renderRegime();
   autoRefreshLoop();
@@ -340,3 +355,4 @@ document.addEventListener("DOMContentLoaded", () => {
 window.openChart = openChart;
 window.closeModal = closeModal;
 window.collectNow = collectNow;
+window.toggleKrw = toggleKrw;

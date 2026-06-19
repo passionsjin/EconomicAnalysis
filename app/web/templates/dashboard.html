@@ -75,6 +75,37 @@
 </section>
 {% endif %}
 
+{# ───────── ⑤ 리스크 경보: 위험게이지 임계선 감시(하방 보호) ───────── #}
+{% if d.risk_alerts %}
+{% set ra = d.risk_alerts %}
+<section class="risk-alerts {{ ra.level }}">
+  <div class="ra-head">
+    {% if ra.level == 'danger' %}<span class="ra-icon">🔴</span><b>리스크 경보 {{ ra.n_danger }}건</b>{% if ra.n_warn %}<span class="ra-sub">· 경계 {{ ra.n_warn }}건</span>{% endif %}
+    {% elif ra.level == 'warn' %}<span class="ra-icon">🟡</span><b>경계 {{ ra.n_warn }}건</b><span class="ra-sub">· 위험선 근접 — 관찰</span>
+    {% else %}<span class="ra-icon">🟢</span><b>리스크 경보 없음</b><span class="ra-sub">· 핵심 위험게이지 모두 정상권</span>{% endif %}
+  </div>
+  {% if ra.active %}
+  <div class="ra-list">
+    {% for a in ra.active %}
+    <div class="ra-item {{ a.level }}" title="{{ a.thr }}">
+      <span class="ra-dot"></span>
+      <span class="ra-label">{{ a.label }}</span>
+      <span class="ra-val">{{ a.value_fmt }}</span>
+      <span class="ra-msg">{{ a.msg }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <div class="ra-gauges">
+    {% for g in ra.gauges %}
+    <span class="ra-chip {{ g.level }}" title="{{ g.label }} · {{ g.value_fmt }} · {{ g.detail }}{% if g.level in ('warn','danger') %} → {{ g.msg }}{% endif %}">
+      <i></i>{{ g.label }} <b>{{ g.value_fmt }}</b>
+    </span>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
 {# ───────── LLM 브리핑 ───────── #}
 <section class="briefing card">
   {% if d.briefing and d.briefing.ok %}

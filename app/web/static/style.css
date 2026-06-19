@@ -293,3 +293,34 @@ body.krw-on .ind[data-krw="1"] .chg.krw{display:inline}
 .ycs{font-size:12px;padding:4px 10px;border-radius:7px;background:var(--bg2);border:1px solid var(--line)}
 .ycs b{font-variant-numeric:tabular-nums;margin-left:4px}
 .ycs.good b{color:var(--good)} .ycs.bad b{color:var(--bad)}
+
+/* ── ⑤ 리스크 경보: 위험게이지 임계선 감시(하방 보호) ── */
+.risk-alerts{border-radius:14px;padding:12px 16px;margin:0 0 14px;border:1px solid var(--line);background:var(--card)}
+.risk-alerts.danger{border-color:rgba(234,57,67,.5);background:linear-gradient(135deg,var(--bad-bg),var(--card) 55%)}
+.risk-alerts.warn{border-color:rgba(240,160,32,.45);background:linear-gradient(135deg,var(--warn-bg),var(--card) 55%)}
+.risk-alerts.clear{border-color:rgba(22,199,132,.28)}
+.ra-head{display:flex;align-items:baseline;gap:8px;font-size:14px}
+.ra-head b{font-size:14.5px}
+.risk-alerts.danger .ra-head b{color:var(--bad)}
+.risk-alerts.warn .ra-head b{color:var(--warn)}
+.risk-alerts.clear .ra-head b{color:var(--good)}
+.ra-sub{color:var(--muted);font-size:12px;font-weight:400}
+.ra-list{display:flex;flex-direction:column;gap:6px;margin:10px 0 4px}
+.ra-item{display:grid;grid-template-columns:auto auto 1fr;align-items:center;gap:9px;font-size:12.5px;padding:6px 10px;border-radius:8px;background:var(--bg2)}
+.ra-item .ra-dot{width:8px;height:8px;border-radius:50%}
+.ra-item.danger .ra-dot{background:var(--bad);box-shadow:0 0 8px 1px rgba(234,57,67,.6)}
+.ra-item.warn .ra-dot{background:var(--warn);box-shadow:0 0 8px 1px rgba(240,160,32,.55)}
+.ra-item .ra-label{font-weight:600;white-space:nowrap}
+.ra-item .ra-val{font-family:'IBM Plex Mono',ui-monospace,monospace}
+.ra-item.danger .ra-val{color:var(--bad)} .ra-item.warn .ra-val{color:var(--warn)}
+.ra-item .ra-msg{color:var(--muted);justify-self:start}
+.ra-gauges{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.ra-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);padding:3px 9px;border-radius:20px;background:var(--bg2);border:1px solid var(--line)}
+.ra-chip b{font-family:'IBM Plex Mono',ui-monospace,monospace;color:#cbd3e0;font-weight:500}
+.ra-chip i{width:7px;height:7px;border-radius:50%;background:var(--neutral);flex:none}
+.ra-chip.clear i{background:var(--good)}
+.ra-chip.warn i{background:var(--warn)}
+.ra-chip.danger i{background:var(--bad)}
+.ra-chip.na i{background:var(--muted2)}
+.ra-chip.warn{border-color:rgba(240,160,32,.4)} .ra-chip.danger{border-color:rgba(234,57,67,.5)}
+@media(max-width:760px){ .ra-item .ra-msg{display:none} }

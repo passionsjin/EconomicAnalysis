@@ -6,6 +6,7 @@ from typing import Optional
 
 from . import repository as repo
 from .analysis import calendar_util
+from .analysis import overlays as overlays_mod
 from .analysis import regime as regime_mod
 from .analysis import stats as stats_mod
 from .collectors.base import ALL_COLLECTORS
@@ -273,7 +274,7 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
     if not snap:
         return {"empty": True, "groups": [], "health": [], "news": [],
                 "calendar": [], "briefing": None, "briefing_cached": False,
-                "snapshot": None, "regime": None, "alerts": []}
+                "snapshot": None, "regime": None, "alerts": [], "overlays": None}
 
     sid = snap["id"]
     obs = repo.get_observations(sid)
@@ -310,4 +311,6 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
         "briefing_cached": briefing_cached,
         "regime": regime,
         "alerts": _recent_alerts(),
+        # 오버레이는 현재 history 기준 → 과거 스냅샷 리포트엔 부적합(시점 불일치)하므로 라이브에서만
+        "overlays": overlays_mod.build_overlays() if snapshot_id is None else None,
     }

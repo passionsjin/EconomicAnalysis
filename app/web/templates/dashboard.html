@@ -99,6 +99,69 @@
   {% endif %}
 </section>
 
+{# ───────── 종합 오버레이: 섹터 상대강도 · 수익률곡선 · 크로스에셋 모멘텀 ───────── #}
+{% if d.overlays and (d.overlays.sector_rs or d.overlays.yield_curve or d.overlays.cross_momentum) %}
+{% set ov = d.overlays %}
+<section class="overlays">
+
+  {# 섹터 상대강도(vs S&P500, 1개월) #}
+  {% if ov.sector_rs and ov.sector_rs.rows %}
+  {% set sr = ov.sector_rs %}
+  <div class="card ov-card">
+    <h3 class="group-title">🔄 섹터 상대강도 <span class="ov-hint">vs S&amp;P500 · 1개월</span></h3>
+    <div class="ov-sub">막대 = 시장 대비 초과수익(%p). <span class="good">오른쪽=시장을 이기는 중</span> · <span class="bad">왼쪽=뒤처짐</span>. 자금이 어디로 도는지(섹터 로테이션).</div>
+    <div class="rsbars">
+      {% for r in sr.rows %}
+      {% set w = (r.rel1|abs / sr.scale * 50)|round(1) if r.rel1 is not none else 0 %}
+      <div class="rsrow" title="{{ r.label }} · 1M 절대 {{ '%+.1f'|format(r.r1) if r.r1 is not none else '—' }}% · 1M 상대 {{ '%+.1f'|format(r.rel1) if r.rel1 is not none else '—' }}%p · 3M 상대 {{ '%+.1f'|format(r.rel3) if r.rel3 is not none else '—' }}%p">
+        <span class="rs-name">{{ r.label }}{% if r.cyc %}<i class="cyc" title="경기민감 섹터">·경기</i>{% endif %}</span>
+        <span class="rs-track">{% if r.rel1 is not none %}<b class="{{ 'pos' if r.rel1 >= 0 else 'neg' }}" style="{{ 'left' if r.rel1 >= 0 else 'right' }}:50%;width:{{ w }}%"></b>{% endif %}</span>
+        <span class="rs-val {{ 'pos' if (r.rel1 or 0) >= 0 else 'neg' }}">{{ '%+.1f'|format(r.rel1) if r.rel1 is not none else '—' }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# 미 국채 수익률곡선 #}
+  {% if ov.yield_curve and ov.yield_curve.points %}
+  {% set yc = ov.yield_curve %}
+  <div class="card ov-card">
+    <h3 class="group-title">📉 미 국채 수익률곡선
+      {% if yc.inv_10_2 or yc.inv_10_3m %}<span class="badge bad" title="장단기 금리 역전 — 역사적 침체 선행신호">역전 ⚠</span>
+      {% else %}<span class="badge good" title="우상향 정상 곡선">정상</span>{% endif %}
+    </h3>
+    <div class="ov-sub">만기별 금리를 한 곡선으로. <span style="color:var(--accent)">파랑=현재</span> · <span class="muted">점선=1개월 전</span>. 우하향(역전)이면 침체 경고.</div>
+    <div class="yc-chart"><canvas id="yieldcurve"></canvas></div>
+    <div class="yc-spreads">
+      <span class="ycs {{ 'bad' if yc.inv_10_2 else 'good' }}" title="10년−2년. 음수=역전">10Y−2Y<b>{{ '%+.2f'|format(yc.s_10_2) if yc.s_10_2 is not none else '—' }}%p</b></span>
+      <span class="ycs {{ 'bad' if yc.inv_10_3m else 'good' }}" title="10년−3개월. 음수=역전(가장 강한 침체 신호)">10Y−3M<b>{{ '%+.2f'|format(yc.s_10_3m) if yc.s_10_3m is not none else '—' }}%p</b></span>
+    </div>
+  </div>
+  {% endif %}
+
+  {# 크로스에셋 모멘텀(3개월) #}
+  {% if ov.cross_momentum and ov.cross_momentum.rows %}
+  {% set cm = ov.cross_momentum %}
+  <div class="card ov-card">
+    <h3 class="group-title">🏁 크로스에셋 모멘텀 <span class="ov-hint">3개월 수익률 순</span></h3>
+    <div class="ov-sub">자산군 횡단 상대강도. 위=강세 주도, 아래=약세. 무엇이 위험선호/회피를 이끄는지 한눈에.</div>
+    <div class="rsbars">
+      {% for r in cm.rows %}
+      {% set w = (r.m3|abs / cm.scale * 50)|round(1) if r.m3 is not none else 0 %}
+      <div class="rsrow" title="{{ r.label }}({{ r.group }}) · 1M {{ '%+.1f'|format(r.m1) if r.m1 is not none else '—' }}% · 3M {{ '%+.1f'|format(r.m3) if r.m3 is not none else '—' }}%">
+        <span class="rs-name">{{ r.label }}<i class="grp">{{ r.group }}</i></span>
+        <span class="rs-track">{% if r.m3 is not none %}<b class="{{ 'pos' if r.m3 >= 0 else 'neg' }}" style="{{ 'left' if r.m3 >= 0 else 'right' }}:50%;width:{{ w }}%"></b>{% endif %}</span>
+        <span class="rs-val {{ 'pos' if (r.m3 or 0) >= 0 else 'neg' }}">{{ '%+.1f'|format(r.m3) if r.m3 is not none else '—' }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</section>
+{% endif %}
+
 {# ───────── 지표 도구막대(검색·필터·내보내기) ───────── #}
 <div class="toolbar">
   <input type="search" id="ind-search" placeholder="🔍 지표 검색…" oninput="filterIndicators()">
@@ -224,5 +287,6 @@
 <script>
   window.__BRIEFING_MD__ = {{ (d.briefing.body_md if d.briefing and d.briefing.ok else "") | tojson }};
   window.__HISTORICAL__ = {{ 'true' if historical else 'false' }};
+  window.__YIELD_CURVE__ = {{ (d.overlays.yield_curve if d.overlays and d.overlays.yield_curve else none) | tojson }};
 </script>
 {% endblock %}

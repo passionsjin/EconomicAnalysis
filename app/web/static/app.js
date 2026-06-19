@@ -257,6 +257,41 @@ async function renderRegime() {
   }
 }
 
+/* ── 수익률곡선 차트(만기축; 현재 vs 1개월 전) ── */
+function renderYieldCurve() {
+  const yc = window.__YIELD_CURVE__;
+  const cv = document.getElementById("yieldcurve");
+  if (!cv || !yc || !yc.points || !yc.points.length || !window.Chart) return;
+  const pts = yc.points;
+  new Chart(cv, {
+    type: "line",
+    data: {
+      labels: pts.map((p) => p.label),
+      datasets: [
+        { label: "현재", data: pts.map((p) => p.cur),
+          borderColor: "#3b82f6", backgroundColor: "#3b82f622",
+          borderWidth: 2.2, pointRadius: 3, pointBackgroundColor: "#3b82f6", tension: 0.3, fill: true },
+        { label: "1개월 전", data: pts.map((p) => p.prev),
+          borderColor: "#7d8696", borderWidth: 1.3, borderDash: [4, 3],
+          pointRadius: 0, tension: 0.3, fill: false },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {
+        legend: { display: true, position: "bottom",
+          labels: { color: "#8a94a6", boxWidth: 12, font: { size: 11 }, padding: 8 } },
+        tooltip: { mode: "index", intersect: false,
+          callbacks: { label: (c) => `${c.dataset.label}: ${c.parsed.y == null ? "—" : c.parsed.y.toFixed(2)}%` } },
+      },
+      scales: {
+        x: { ticks: { color: "#8a94a6" }, grid: { color: "#1b2230" } },
+        y: { ticks: { color: "#8a94a6", callback: (v) => v + "%" }, grid: { color: "#1b2230" } },
+      },
+    },
+  });
+}
+
 /* ── 모달 큰 차트 ── */
 let _modalChart = null;
 async function openChart(key, label, unit) {
@@ -346,6 +381,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (sparks.length) pool([...sparks], drawSpark, 6);
   applyFavs();
   restoreKrw();
+  renderYieldCurve();
   renderCorrelations();
   renderRegime();
   autoRefreshLoop();

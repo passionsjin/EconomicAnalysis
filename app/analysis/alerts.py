@@ -1,7 +1,7 @@
 """시장 리스크 경보 — 핵심 위험게이지가 임계선을 넘으면 경고(지킴/하방보호 정면).
 
-게이지 6종: VIX·HY신용스프레드·금융여건(NFCI)·수익률곡선(10Y−3M)은 절대 임계선,
-순유동성은 4주 추세, 레짐은 점수/전환으로 판정. 각 게이지는 danger/warn/clear 3단계.
+게이지 7종: VIX·MOVE(채권변동성)·HY신용스프레드·금융여건(NFCI)·수익률곡선(10Y−3M)은
+절대 임계선, 순유동성은 4주 추세, 레짐은 점수/전환으로 판정. 각 게이지는 danger/warn/clear 3단계.
 현재값이 평온하면 false alarm 없이 'clear' — 강한 위험선호 국면에선 전부 clear 가 정상.
 
 임계선 근거(주석): 시장 통용 수준. 사용자(한국 글로벌매크로 배분가)의 '언제 방어로
@@ -19,6 +19,9 @@ _LEVEL_SPECS = [
     {"key": "vix", "label": "VIX 변동성", "dir": "high", "warn": 20.0, "danger": 30.0,
      "unit": "", "dec": 1, "msg": "주식 변동성 급등 — 헤지·현금비중 점검",
      "thr": "경계 ≥20 · 위험 ≥30"},
+    {"key": "move", "label": "MOVE 채권변동성", "dir": "high", "warn": 130.0, "danger": 150.0,
+     "unit": "", "dec": 0, "msg": "채권 변동성 급등 — 금리 불확실성·시장 스트레스, 방어 점검",
+     "thr": "경계 ≥130 · 위험 ≥150"},
     {"key": "us_hy_spread", "label": "HY 신용스프레드", "dir": "high", "warn": 5.0, "danger": 7.0,
      "unit": "%", "dec": 2, "msg": "하이일드 신용경색 — 위험자산 비중 축소 신호",
      "thr": "경계 ≥5% · 위험 ≥7%"},
@@ -90,7 +93,7 @@ _ORDER_RANK = {"danger": 0, "warn": 1, "clear": 2, "na": 3}
 
 
 def evaluate_alerts(obs: dict, regime: Optional[dict] = None) -> dict:
-    """관측값+레짐 → 리스크 경보 묶음. gauges=전체 6종(상태표시줄), active=발화분(danger/warn)."""
+    """관측값+레짐 → 리스크 경보 묶음. gauges=전체 7종(상태표시줄), active=발화분(danger/warn)."""
     gauges = [_level_gauge(spec, obs) for spec in _LEVEL_SPECS]
     gauges.append(_netliq_gauge())
     gauges.append(_regime_gauge(regime))

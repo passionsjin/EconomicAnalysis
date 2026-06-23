@@ -59,19 +59,20 @@ def correlation_matrix(keys: list[str], window: int = 30) -> list[list[float | N
 
 # ── 위험선호 점수(레짐 v2) ───────────────────────────────────────────
 # 여러 신호를 [-1,+1] 기여도로 정규화해 가중 평균 → 0~100 (50=중립, 높을수록 위험선호).
-# 입력: VIX·HY스프레드(수준+방향)·NFCI·주가추세·섹터폭(경기-방어)·달러·실질금리·장단기차.
+# 입력: VIX·HY스프레드(수준+방향)·NFCI·주가추세·섹터폭(경기-방어)·달러·실질금리·장단기차·실물경기(CFNAI).
 _SIG_WEIGHTS = {
     "vix": 0.18, "hy": 0.16, "nfci": 0.14, "equity": 0.14,
     "breadth": 0.12, "dollar": 0.10, "real": 0.08, "curve": 0.08,
+    "macro": 0.10,   # 실물경기 모멘텀(CFNAI) — 금융시장 신호에 빠진 경기 사이클 보강
 }
 _SIG_LABEL = {
     "vix": "VIX(변동성)", "hy": "HY 신용스프레드", "nfci": "금융여건(NFCI)",
     "equity": "주가 추세", "breadth": "섹터폭(경기-방어)", "dollar": "달러",
-    "real": "실질금리", "curve": "장단기차(10Y-2Y)",
+    "real": "실질금리", "curve": "장단기차(10Y-2Y)", "macro": "실물경기(CFNAI)",
 }
 _CYCLICAL = ["xlk", "xly", "xlf", "xli", "xlb"]   # 경기민감 섹터
 _DEFENSIVE = ["xlp", "xlu", "xlv"]                # 방어 섹터
-_NEEDED = (["vix", "us_hy_spread", "us_nfci", "sp500", "dxy", "us_real10y", "us_10y2y"]
+_NEEDED = (["vix", "us_hy_spread", "us_nfci", "sp500", "dxy", "us_real10y", "us_10y2y", "us_cfnai"]
            + _CYCLICAL + _DEFENSIVE)
 
 
@@ -156,6 +157,10 @@ def _signals_at(aligned: dict[str, list], i: int, window: int) -> dict[str, tupl
     if curve is not None:
         sig["curve"] = (_clamp(curve / 0.5), curve)           # 역전(음수)=비우호
 
+    cfnai = g("us_cfnai")
+    if cfnai is not None:
+        sig["macro"] = (_clamp(cfnai / 0.7), cfnai)           # 추세 이상 성장(+)=위험선호, −0.7=침체
+
     return sig
 
 
@@ -195,6 +200,7 @@ def _fmt_sig(name: str, v: float) -> str:
         "vix": f"VIX {v:.1f}", "hy": f"HY {v:.2f}%", "nfci": f"NFCI {v:+.2f}",
         "equity": f"주식 {v:+.1f}%", "breadth": f"경기-방어 {v:+.1f}%p",
         "dollar": f"달러 {v:+.1f}%", "real": f"실질금리 {v:+.2f}%p", "curve": f"10Y-2Y {v:+.2f}",
+        "macro": f"CFNAI {v:+.2f}",
     }.get(name, name)
 
 
@@ -238,7 +244,7 @@ def detect_regime(window: int = 20) -> dict:
         meaning = "위험 선호와 회피가 팽팽하거나 방향이 전환되는 국면 (뚜렷한 쏠림 없음)."
 
     intro = ("시장 분위기 = VIX·신용스프레드·금융여건(NFCI)·주가추세·섹터폭·달러·"
-             "실질금리·장단기차를 합성한 0~100 위험선호 점수(50=중립, 높을수록 위험선호).")
+             "실질금리·장단기차·실물경기(CFNAI)를 합성한 0~100 위험선호 점수(50=중립, 높을수록 위험선호).")
     driver_txt = ", ".join(drivers) if drivers else "특이 동인 없음"
     tip = f"{intro}\n\n현재: {score}/100 {short} — {meaning}\n주요 동인: {driver_txt}"
 

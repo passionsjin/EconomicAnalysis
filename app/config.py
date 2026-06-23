@@ -242,6 +242,8 @@ INDICATORS: list[Indicator] = [
     Indicator("us_nfci",     "미 금융여건지수(NFCI)","us_macro", "fred", "NFCI", decimals=2, up_is_good=False, freq="W",
               note="0 기준 · 양수=긴축적 / 음수=완화적 금융여건"),
     Indicator("us_indpro_yoy","미 산업생산 전년比",  "us_macro", "fred", "INDPRO", unit="%", decimals=2, transform="yoy", up_is_good=True, freq="M"),
+    Indicator("us_cfnai",    "미 경기활동(CFNAI·3M)","us_macro", "fred", "CFNAIMA3", decimals=2, up_is_good=True, freq="M",
+              note="시카고연준 전미활동지수 3개월평균 — 0=추세성장, +0.7↑ 과열·−0.7↓ 침체. 레짐 9번째(실물경기) 신호"),
     Indicator("us_umcsent",  "미 소비자심리(미시간)", "us_macro", "fred", "UMCSENT", decimals=1, up_is_good=True, freq="M",
               note="미시간대 소비자심리지수(높을수록 양호)"),
     Indicator("us_mortgage30","미 30년 모기지금리",  "us_macro", "fred", "MORTGAGE30US", unit="%", decimals=2, up_is_good=False, freq="W"),
@@ -265,6 +267,15 @@ INDICATORS: list[Indicator] = [
     Indicator("kr_cpi_yoy",   "한국 CPI 전년比", "kr_macro", "ecos", "901Y009",
               unit="%", decimals=2, ecos_item="0", ecos_cycle="M", up_is_good=False,
               transform="yoy", freq="M"),
+
+    # 한국 금리(FRED·OECD; ECOS 키 없이도 동작) + 한미 10년 금리차(파생)
+    Indicator("kr_10y",       "한국 국고 10년", "kr_macro", "fred", "IRLTLT01KRM156N",
+              unit="%", decimals=2, up_is_good=None, freq="M",
+              note="OECD 기준 한국 10년 국채수익률(월). 한미 금리차의 한국 축"),
+    Indicator("kr_us_10y_spread", "한미 10년 금리차(미−한)", "kr_macro", "derived", "",
+              unit="%", decimals=2, up_is_good=None, freq="M",
+              derived=("us10y", "-", "kr_10y"),
+              note="미국−한국 10년 국채금리차(%p). 양(+)=미 금리 우위(원화 약세·자본유출 압력), 음(−)=한국 우위"),
 ]
 
 INDICATOR_BY_KEY: dict[str, Indicator] = {ind.key: ind for ind in INDICATORS}
@@ -280,6 +291,7 @@ _PRIORITY_1 = {
     "sp500", "nasdaq", "vix", "us10y", "us_real10y", "dxy", "us_fedfunds",
     "us_cpi_yoy", "us_10y2y", "us_hy_spread", "kospi", "usdkrw", "gold", "btc", "wti",
     "us_t10y3m", "us_nfci", "us_net_liq", "r_copper_gold",
+    "us_cfnai", "kr_us_10y_spread",
 }
 _PRIORITY_3 = {
     "silver", "copper", "natgas", "us05y", "us13w", "us30y",
@@ -340,6 +352,9 @@ _SO_WHAT = {
     "wti": "급등 = 인플레·비용 압력, 급락 = 수요 둔화 우려",
     "kospi": "외국인 수급·반도체·달러에 민감 — 글로벌 위험선호의 베타",
     "sp500": "글로벌 위험자산 벤치마크 — 추세·시장폭과 함께 판단",
+    "us_cfnai": "0 위=추세 이상 성장(위험선호 우호), 0 아래·−0.7↓=경기 둔화·침체 경고",
+    "kr_10y": "한국 장기금리 — 상승=긴축/원화 방어, 한미 금리차와 함께 자본흐름 해석",
+    "kr_us_10y_spread": "양(+)=미 금리 우위 → 원화 약세·외국인 자금유출 압력, 음(−)=한국 우위 → 원화 강세 우호",
 }
 
 

@@ -277,8 +277,8 @@ INDICATORS: list[Indicator] = [
               derived=("us10y", "-", "kr_10y"),
               note="미국−한국 10년 국채금리차(%p). 양(+)=미 금리 우위(원화 약세·자본유출 압력), 음(−)=한국 우위"),
 
-    # ⑧ 한국 심화: KTB 단기축 + 장단기차(10Y−3M) — FRED·키 불필요
-    # (한국 수출 YoY는 FRED OECD XTEXVA01KRM664S 최근 빈티지에 레벨 단절 아티팩트(거짓 +53%)라 제외 — 신뢰 소스는 ECOS 후속)
+    # ⑧ 한국 심화: KTB 단기축 + 장단기차(10Y−3M, FRED) + 수출 물량 모멘텀(ECOS)
+    # (수출 '금액'지수는 원화 약세로 +57% 왜곡 → 아래 '물량'지수 YoY 사용; FRED OECD 수출도 동일 왜곡이라 미사용)
     Indicator("kr_3m",        "한국 3개월 금리", "kr_macro", "fred", "IR3TIB01KRM156N",
               unit="%", decimals=2, up_is_good=None, freq="M",
               note="OECD 기준 한국 3개월 시장금리(월). 한국 국채 커브 단기축·정책금리 근사"),
@@ -286,6 +286,16 @@ INDICATORS: list[Indicator] = [
               unit="%", decimals=2, up_is_good=None, freq="M",
               derived=("kr_10y", "-", "kr_3m"),
               note="한국 국채 10Y−3M(%p). 음수=장단기 역전(경기둔화·침체 신호), 확대=경기회복 기대"),
+
+    # 한국 수출 물량 모멘텀(ECOS 수출물량지수 전년비; 실질=가격·환율 제거)
+    Indicator("kr_exports_vol_yoy", "한국 수출물량 전년比", "kr_macro", "ecos", "403Y002",
+              unit="%", decimals=1, transform="yoy", up_is_good=True, freq="M",
+              ecos_item="*AA", ecos_cycle="M",
+              note="ECOS 수출물량지수 전년동월비(실질 수출, 가격·환율 제거). KOSPI·경기 모멘텀 선행"),
+    Indicator("kr_semi_exports_vol_yoy", "한국 반도체 수출물량 전년比", "kr_macro", "ecos", "403Y002",
+              unit="%", decimals=1, transform="yoy", up_is_good=True, freq="M",
+              ecos_item="3091AA", ecos_cycle="M",
+              note="ECOS 반도체 수출물량지수 전년동월비. 한국 수출·KOSPI 핵심 변동요인(금액은 환율로 과대—물량이 실질 신호)"),
 ]
 
 INDICATOR_BY_KEY: dict[str, Indicator] = {ind.key: ind for ind in INDICATORS}
@@ -301,7 +311,7 @@ _PRIORITY_1 = {
     "sp500", "nasdaq", "vix", "us10y", "us_real10y", "dxy", "us_fedfunds",
     "us_cpi_yoy", "us_10y2y", "us_hy_spread", "kospi", "usdkrw", "gold", "btc", "wti",
     "us_t10y3m", "us_nfci", "us_net_liq", "r_copper_gold",
-    "us_cfnai", "kr_us_10y_spread",
+    "us_cfnai", "kr_us_10y_spread", "kr_semi_exports_vol_yoy", "kr_exports_vol_yoy",
 }
 _PRIORITY_3 = {
     "silver", "copper", "natgas", "us05y", "us13w", "us30y",
@@ -367,6 +377,8 @@ _SO_WHAT = {
     "kr_us_10y_spread": "양(+)=미 금리 우위 → 원화 약세·외국인 자금유출 압력, 음(−)=한국 우위 → 원화 강세 우호",
     "kr_3m": "한국 단기금리(정책 근사) — 한미 단기금리차·원화 캐리와 함께 해석",
     "kr_term_spread": "음수(역전)=경기둔화·침체 신호, 확대=회복 기대 — 미 곡선과 함께 글로벌 경기 판단",
+    "kr_exports_vol_yoy": "실질 수출 모멘텀(가격·환율 제거) — 가속=경기·KOSPI 우호, 둔화=역풍",
+    "kr_semi_exports_vol_yoy": "반도체 실질 수출 모멘텀(한국 수출·KOSPI 핵심) — 원화 금액은 환율로 부풀려져 물량이 진짜 신호",
 }
 
 

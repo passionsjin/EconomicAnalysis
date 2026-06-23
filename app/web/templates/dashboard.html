@@ -66,7 +66,7 @@
   <div class="sig-main">
     <div class="sig-stance">{{ rg.stance or rg.short }}</div>
     <div class="sig-sub">위험선호 <b>{{ rg.score }}</b>/100
-      {% if rg.delta is not none %} · 어제比 <span class="sig-delta {{ 'up' if rg.delta > 0 else 'down' if rg.delta < 0 else '' }}">{{ '%+d'|format(rg.delta) }}</span>{% endif %}
+      {% if rg.delta is not none %} · 어제 대비 <span class="sig-delta {{ 'up' if rg.delta > 0 else 'down' if rg.delta < 0 else '' }}">{{ '%+d'|format(rg.delta) }}</span>{% endif %}
       {% if rg.short and rg.short not in rg.stance %} · {{ rg.short }}{% endif %}
     </div>
     {% if rg.drivers %}<div class="sig-drivers">동인: {{ rg.drivers[:3]|join(' · ') }}</div>{% endif %}
@@ -118,7 +118,7 @@
   <div class="al-bar">
     {% for b in al.buckets %}
     <span class="al-seg {{ b.key }}" style="width:{{ b.weight }}%"
-          title="{{ b.label }} {{ b.weight }}%{% if b.tilt %} (중립比 {{ '%+d'|format(b.tilt) }}%p){% endif %}">{% if b.weight >= 10 %}{{ b.weight }}{% endif %}</span>
+          title="{{ b.label }} {{ b.weight }}%{% if b.tilt %} (중립 대비 {{ '%+d'|format(b.tilt) }}%p){% endif %}">{% if b.weight >= 10 %}{{ b.weight }}{% endif %}</span>
     {% endfor %}
   </div>
   <div class="al-legend">
@@ -288,7 +288,7 @@
       {% endif %}
       {% if it.ok and (it.dist_high is not none or it.rvol is not none) %}
       <div class="riskrow" title="52주 고점 {{ it.hi52|round(2) }} · 저점 {{ it.lo52|round(2) }}{% if it.mdd is not none %} · 최대낙폭 {{ it.mdd }}%{% endif %}{% if it.rvol is not none %} · 실현변동성(연율·30일) {{ it.rvol }}%{% endif %}">
-        {% if it.dist_high is not none %}<span class="rk">고점比 {{ '%+.0f'|format(it.dist_high) }}%</span>{% endif %}
+        {% if it.dist_high is not none %}<span class="rk">고점 대비 {{ '%+.0f'|format(it.dist_high) }}%</span>{% endif %}
         {% if it.rvol is not none %}<span class="rk">σ{{ it.rvol }}%</span>{% endif %}
         {% if it.mdd is not none %}<span class="rk">MDD {{ '%.0f'|format(it.mdd) }}%</span>{% endif %}
       </div>

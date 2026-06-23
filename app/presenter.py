@@ -121,8 +121,8 @@ def _indicator_view(ind: Indicator, obs: dict, rates: Optional[dict] = None) -> 
     change = row.get("change")
     change_pct = row.get("change_pct")
 
-    # 금리·비율(% 단위) 지표는 '절대 변화(%p)'가 주(主) 표시여야 자연스럽다.
-    # (예: CPI 전년比 3.78%→4.17% 는 +10.25%(상대)가 아니라 +0.39%p 가 거시 관행)
+    # 금리·비율(% 단위) 지표는 '절대 변화(%p)'가 주된 표시여야 자연스럽다.
+    # (예: CPI 전년비 3.78%→4.17% 는 +10.25%(상대)가 아니라 +0.39%p 가 거시 관행)
     # 또 장단기차처럼 0 부근/음수를 오가는 시리즈는 상대%가 무의미하므로 %p 가 더 정확.
     is_pp = ind.unit == "%"
     if is_pp:

@@ -72,9 +72,9 @@ def _netliq_gauge() -> dict:
 
 
 def _regime_gauge(regime: Optional[dict]) -> dict:
-    """레짐 위험선호 점수: 위험회피권 진입(<43) 또는 급락(어제比 ≤−8)이면 경보."""
+    """레짐 위험선호 점수: 위험회피권 진입(<43) 또는 급락(어제 대비 ≤−8)이면 경보."""
     base = {"key": "regime", "label": "레짐 전환", "msg": "위험선호→회피 전환 — 방어 비중 확대 검토",
-            "thr": "경계 <43 또는 어제比 ≤−8 · 위험 <31"}
+            "thr": "경계 <43 또는 어제 대비 ≤−8 · 위험 <31"}
     if not regime or regime.get("score") is None:
         return {**base, "level": "na", "value_fmt": "—", "detail": "데이터 없음"}
     score = regime["score"]
@@ -85,7 +85,7 @@ def _regime_gauge(regime: Optional[dict]) -> dict:
         level = "warn"
     else:
         level = "clear"
-    dtxt = f" · 어제比 {delta:+d}" if delta is not None else ""
+    dtxt = f" · 어제 대비 {delta:+d}" if delta is not None else ""
     return {**base, "level": level, "value_fmt": f"{score}/100", "detail": f"{regime.get('short','')}{dtxt}"}
 
 

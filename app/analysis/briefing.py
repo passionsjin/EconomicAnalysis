@@ -90,7 +90,7 @@ def _enrich_tag(ind, q: Quote) -> str:
         rk = risk_metrics([(d, v) for d, v in q.history if v is not None])
         if rk:
             if rk.get("dist_high") is not None:
-                bits.append(f"고점比 {rk['dist_high']:+.0f}%")
+                bits.append(f"고점 대비 {rk['dist_high']:+.0f}%")
             if rk.get("rvol") is not None:
                 bits.append(f"σ{rk['rvol']:.0f}%")
     z = zscore(q.value, hv[-win:])
@@ -271,7 +271,7 @@ def build_prompt(quotes: dict[str, Quote], news: list[NewsItem],
         parts.append(f"## 시장 레짐(자동판정)\n{_regime_block(regime)}\n")
     if prior and prior.get("deltas"):
         parts.append(f"## 직전 브리핑 대비 변화\n{_prior_block(prior)}\n")
-    parts.append(f"## 시장·거시 지표 (괄호=직전 관측 대비; [%ile=기간내 백분위(일별≈최근5년·월별≈최근20년), 1M/YTD=모멘텀, 고점比=52주 고점 대비, σ=연율 실현변동성, 이상치])\n{_data_block(quotes)}\n")
+    parts.append(f"## 시장·거시 지표 (괄호=직전 관측 대비; [%ile=기간내 백분위(일별≈최근5년·월별≈최근20년), 1M/YTD=모멘텀, 고점 대비=52주 고점 대비, σ=연율 실현변동성, 이상치])\n{_data_block(quotes)}\n")
     parts.append(f"## 핵심 자산 다기간 모멘텀\n{_momentum_block(quotes)}\n")
     parts.append(f"## 주요 뉴스 헤드라인\n{_news_block(news)}\n")
     parts.append(f"## 예정된 주요 경제지표 발표 (UTC)\n{_calendar_block(events, now_utc=now_utc)}")
@@ -450,7 +450,7 @@ def _cited_value(body: str, ind, maxgap: int = 6) -> Optional[float]:
     - 라벨 양옆이 한글이면 더 큰 단어의 일부('금'↔'금리결정')로 보고 건너뛴다.
     - 값은 라벨 직후(maxgap 자 이내)에 와야 한다. '코스피 YTD +102.5%' 처럼 라벨 뒤가
       모멘텀/백분위 태그로 시작하면(숫자가 멀리 있음) 그 등장은 값 인용이 아니다.
-    - 비(非)% 지표는 백분율 숫자(YTD/%ile, '+102.5%')를 값으로 오인하지 않게 '%' 붙은 수는 건너뜀.
+    - %가 아닌 지표는 백분율 숫자(YTD/%ile, '+102.5%')를 값으로 오인하지 않게 '%' 붙은 수는 건너뜀.
     여러 번 등장하면 위 조건을 처음 만족하는 등장의 숫자를 값으로 채택.
     """
     is_pct = ind.unit == "%"

@@ -219,8 +219,8 @@ INDICATORS: list[Indicator] = [
 
     # ── 미국 거시 (FRED 시리즈; 키 없으면 CSV 폴백, 도달 불가 시 자동 스킵) ──
     Indicator("us_fedfunds", "미 기준금리(실효)", "us_macro", "fred", "DFF",    unit="%", decimals=2),
-    Indicator("us_cpi_yoy",  "미 CPI 전년比",     "us_macro", "fred", "CPIAUCSL", unit="%", decimals=2, transform="yoy", up_is_good=False, freq="M"),
-    Indicator("us_core_pce", "미 근원 PCE 전년比","us_macro", "fred", "PCEPILFE", unit="%", decimals=2, transform="yoy", up_is_good=False, freq="M"),
+    Indicator("us_cpi_yoy",  "미 CPI 전년비",     "us_macro", "fred", "CPIAUCSL", unit="%", decimals=2, transform="yoy", up_is_good=False, freq="M"),
+    Indicator("us_core_pce", "미 근원 PCE 전년비","us_macro", "fred", "PCEPILFE", unit="%", decimals=2, transform="yoy", up_is_good=False, freq="M"),
     Indicator("us_unrate",   "미 실업률",         "us_macro", "fred", "UNRATE",  unit="%", decimals=1, up_is_good=False, freq="M"),
     Indicator("us_10y2y",    "미 장단기차(10Y-2Y)","us_macro","fred", "T10Y2Y",  unit="%", decimals=2,
               note="음수면 장단기금리 역전(침체 신호)"),
@@ -247,7 +247,7 @@ INDICATORS: list[Indicator] = [
               note="5년후 5년 선도 기대인플레(연준 장기 기대 척도)"),
     Indicator("us_nfci",     "미 금융여건지수(NFCI)","us_macro", "fred", "NFCI", decimals=2, up_is_good=False, freq="W",
               note="0 기준 · 양수=긴축적 / 음수=완화적 금융여건"),
-    Indicator("us_indpro_yoy","미 산업생산 전년比",  "us_macro", "fred", "INDPRO", unit="%", decimals=2, transform="yoy", up_is_good=True, freq="M"),
+    Indicator("us_indpro_yoy","미 산업생산 전년비",  "us_macro", "fred", "INDPRO", unit="%", decimals=2, transform="yoy", up_is_good=True, freq="M"),
     Indicator("us_cfnai",    "미 경기활동(CFNAI·3M)","us_macro", "fred", "CFNAIMA3", decimals=2, up_is_good=True, freq="M",
               note="시카고연준 전미활동지수 3개월평균 — 0=추세성장, +0.7↑ 과열·−0.7↓ 침체. 레짐 9번째(실물경기) 신호"),
     Indicator("us_umcsent",  "미 소비자심리(미시간)", "us_macro", "fred", "UMCSENT", decimals=1, up_is_good=True, freq="M",
@@ -270,7 +270,7 @@ INDICATORS: list[Indicator] = [
     # ── 한국 거시 (ECOS; 키 있을 때만 활성) ──
     Indicator("kr_base_rate", "한국 기준금리", "kr_macro", "ecos", "722Y001",
               unit="%", decimals=2, ecos_item="0101000", ecos_cycle="M", freq="M"),
-    Indicator("kr_cpi_yoy",   "한국 CPI 전년比", "kr_macro", "ecos", "901Y009",
+    Indicator("kr_cpi_yoy",   "한국 CPI 전년비", "kr_macro", "ecos", "901Y009",
               unit="%", decimals=2, ecos_item="0", ecos_cycle="M", up_is_good=False,
               transform="yoy", freq="M"),
 
@@ -294,11 +294,11 @@ INDICATORS: list[Indicator] = [
               note="한국 국채 10Y−3M(%p). 음수=장단기 역전(경기둔화·침체 신호), 확대=경기회복 기대"),
 
     # 한국 수출 물량 모멘텀(ECOS 수출물량지수 전년비; 실질=가격·환율 제거)
-    Indicator("kr_exports_vol_yoy", "한국 수출물량 전년比", "kr_macro", "ecos", "403Y002",
+    Indicator("kr_exports_vol_yoy", "한국 수출물량 전년비", "kr_macro", "ecos", "403Y002",
               unit="%", decimals=1, transform="yoy", up_is_good=True, freq="M",
               ecos_item="*AA", ecos_cycle="M",
               note="ECOS 수출물량지수 전년동월비(실질 수출, 가격·환율 제거). KOSPI·경기 모멘텀 선행"),
-    Indicator("kr_semi_exports_vol_yoy", "한국 반도체 수출물량 전년比", "kr_macro", "ecos", "403Y002",
+    Indicator("kr_semi_exports_vol_yoy", "한국 반도체 수출물량 전년비", "kr_macro", "ecos", "403Y002",
               unit="%", decimals=1, transform="yoy", up_is_good=True, freq="M",
               ecos_item="3091AA", ecos_cycle="M",
               note="ECOS 반도체 수출물량지수 전년동월비. 한국 수출·KOSPI 핵심 변동요인(금액은 환율로 과대—물량이 실질 신호)"),

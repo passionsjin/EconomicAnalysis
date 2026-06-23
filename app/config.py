@@ -276,6 +276,16 @@ INDICATORS: list[Indicator] = [
               unit="%", decimals=2, up_is_good=None, freq="M",
               derived=("us10y", "-", "kr_10y"),
               note="미국−한국 10년 국채금리차(%p). 양(+)=미 금리 우위(원화 약세·자본유출 압력), 음(−)=한국 우위"),
+
+    # ⑧ 한국 심화: KTB 단기축 + 장단기차(10Y−3M) — FRED·키 불필요
+    # (한국 수출 YoY는 FRED OECD XTEXVA01KRM664S 최근 빈티지에 레벨 단절 아티팩트(거짓 +53%)라 제외 — 신뢰 소스는 ECOS 후속)
+    Indicator("kr_3m",        "한국 3개월 금리", "kr_macro", "fred", "IR3TIB01KRM156N",
+              unit="%", decimals=2, up_is_good=None, freq="M",
+              note="OECD 기준 한국 3개월 시장금리(월). 한국 국채 커브 단기축·정책금리 근사"),
+    Indicator("kr_term_spread", "한국 장단기금리차(10Y−3M)", "kr_macro", "derived", "",
+              unit="%", decimals=2, up_is_good=None, freq="M",
+              derived=("kr_10y", "-", "kr_3m"),
+              note="한국 국채 10Y−3M(%p). 음수=장단기 역전(경기둔화·침체 신호), 확대=경기회복 기대"),
 ]
 
 INDICATOR_BY_KEY: dict[str, Indicator] = {ind.key: ind for ind in INDICATORS}
@@ -297,7 +307,7 @@ _PRIORITY_3 = {
     "silver", "copper", "natgas", "us05y", "us13w", "us30y",
     "eurusd", "usdjpy", "usdcny", "eth", "shanghai", "eustoxx", "hangseng",
     "xlk", "xlf", "xle", "xlv", "xli", "xly", "xlp", "xlu", "xlb", "xlre", "xlc",
-    "us_walcl", "us_rrp", "us_tga", "us_m2", "hyg", "lqd",
+    "us_walcl", "us_rrp", "us_tga", "us_m2", "hyg", "lqd", "kr_3m",
 }
 
 
@@ -355,6 +365,8 @@ _SO_WHAT = {
     "us_cfnai": "0 위=추세 이상 성장(위험선호 우호), 0 아래·−0.7↓=경기 둔화·침체 경고",
     "kr_10y": "한국 장기금리 — 상승=긴축/원화 방어, 한미 금리차와 함께 자본흐름 해석",
     "kr_us_10y_spread": "양(+)=미 금리 우위 → 원화 약세·외국인 자금유출 압력, 음(−)=한국 우위 → 원화 강세 우호",
+    "kr_3m": "한국 단기금리(정책 근사) — 한미 단기금리차·원화 캐리와 함께 해석",
+    "kr_term_spread": "음수(역전)=경기둔화·침체 신호, 확대=회복 기대 — 미 곡선과 함께 글로벌 경기 판단",
 }
 
 

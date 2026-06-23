@@ -155,6 +155,8 @@ INDICATORS: list[Indicator] = [
     # ── 변동성 ──
     Indicator("vix", "VIX 공포지수", "volatility", "yahoo", "^VIX", decimals=2, up_is_good=False,
               note="20 이상이면 시장 불안 고조"),
+    Indicator("move", "MOVE 채권변동성", "volatility", "yahoo", "^MOVE", decimals=2, up_is_good=False,
+              note="ICE BofA MOVE — 미국채 내재변동성(채권판 VIX). 급등=금리 불확실성·시장 스트레스"),
 
     # ── 환율 (Yahoo) ──
     Indicator("usdkrw", "원/달러",       "fx", "yahoo", "KRW=X",    decimals=2),
@@ -233,6 +235,9 @@ INDICATORS: list[Indicator] = [
               note="명목 10년 − 10년 기대인플레. 실제 통화긴축 강도"),
     Indicator("us_t10y3m",   "미 장단기차(10Y-3M)", "us_macro", "fred", "T10Y3M", unit="%", decimals=2, up_is_good=None,
               note="연준 선호 침체 선행지표 — 음수면 역전"),
+    Indicator("us_2y_ffr",   "시장 기대 금리경로(2Y−FFR)", "us_macro", "derived", "", unit="%", decimals=2, up_is_good=None,
+              derived=("us02y", "-", "us_fedfunds"),
+              note="2년물−실효FFR(%p). 시장이 가격에 반영한 향후 정책경로 — 음수=인하 기대, 양수=인상/동결 장기화"),
     Indicator("us_ig_spread","미 투자등급 스프레드", "us_macro", "fred", "BAMLC0A0CM", unit="%", decimals=2, up_is_good=False,
               note="IG 회사채 OAS — HY와 함께 신용여건 해석"),
     Indicator("us_hyig",     "HY−IG 신용차",       "us_macro", "derived", "", unit="%", decimals=2, up_is_good=False,
@@ -323,7 +328,7 @@ _PRIORITY_1 = {
     "us_cpi_yoy", "us_10y2y", "us_hy_spread", "kospi", "usdkrw", "gold", "btc", "wti",
     "us_t10y3m", "us_nfci", "us_net_liq", "r_copper_gold",
     "us_cfnai", "kr_us_10y_spread", "kr_semi_exports_vol_yoy", "kr_exports_vol_yoy",
-    "kospi_per",
+    "kospi_per", "move", "us_2y_ffr",
 }
 _PRIORITY_3 = {
     "silver", "copper", "natgas", "us05y", "us13w", "us30y",
@@ -393,6 +398,8 @@ _SO_WHAT = {
     "kr_semi_exports_vol_yoy": "반도체 실질 수출 모멘텀(한국 수출·KOSPI 핵심) — 원화 금액은 환율로 부풀려져 물량이 진짜 신호",
     "kospi_per": "코스피 이익 대비 주가 — 역사적 백분위로 비쌈/쌈 판단(높을수록 고평가)",
     "kospi_div_yield": "배당수익률 높을수록 저평가·방어적 — 국채금리와 비교해 주식 상대매력",
+    "move": "급등 = 금리 변동성·불확실성 확대 → 위험자산·신용 부담, 정책/인플레 우려 신호",
+    "us_2y_ffr": "2Y−실효FFR = 시장이 가격에 반영한 정책경로 — 음수=인하 기대, 양수=인상/동결 장기화",
 }
 
 

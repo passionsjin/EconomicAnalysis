@@ -111,6 +111,7 @@ CATEGORIES: dict[str, str] = {
     "us_macro": "미국 거시지표",
     "liquidity": "유동성·통화",
     "kr_macro": "한국 거시지표",
+    "valuation": "밸류에이션",
 }
 
 
@@ -296,6 +297,16 @@ INDICATORS: list[Indicator] = [
               unit="%", decimals=1, transform="yoy", up_is_good=True, freq="M",
               ecos_item="3091AA", ecos_cycle="M",
               note="ECOS 반도체 수출물량지수 전년동월비. 한국 수출·KOSPI 핵심 변동요인(금액은 환율로 과대—물량이 실질 신호)"),
+
+    # ── 밸류에이션 (ECOS 주식시장 통계; 코스피 PER·배당수익률. PBR은 ECOS 부재=KRX 전용) ──
+    Indicator("kospi_per", "코스피 PER", "valuation", "ecos", "901Y014",
+              unit="배", decimals=1, up_is_good=None, freq="M",
+              ecos_item="1110000", ecos_cycle="M",
+              note="코스피 주가이익비율(배). 역사적 백분위로 고평가/저평가 — 높을수록 비쌈(성장 기대 선반영)"),
+    Indicator("kospi_div_yield", "코스피 배당수익률", "valuation", "ecos", "901Y014",
+              unit="%", decimals=2, up_is_good=None, freq="M",
+              ecos_item="1100000", ecos_cycle="M",
+              note="코스피 배당수익률(%). 높을수록 저평가·방어적 — 채권금리와 비교한 상대 매력"),
 ]
 
 INDICATOR_BY_KEY: dict[str, Indicator] = {ind.key: ind for ind in INDICATORS}
@@ -312,6 +323,7 @@ _PRIORITY_1 = {
     "us_cpi_yoy", "us_10y2y", "us_hy_spread", "kospi", "usdkrw", "gold", "btc", "wti",
     "us_t10y3m", "us_nfci", "us_net_liq", "r_copper_gold",
     "us_cfnai", "kr_us_10y_spread", "kr_semi_exports_vol_yoy", "kr_exports_vol_yoy",
+    "kospi_per",
 }
 _PRIORITY_3 = {
     "silver", "copper", "natgas", "us05y", "us13w", "us30y",
@@ -379,6 +391,8 @@ _SO_WHAT = {
     "kr_term_spread": "음수(역전)=경기둔화·침체 신호, 확대=회복 기대 — 미 곡선과 함께 글로벌 경기 판단",
     "kr_exports_vol_yoy": "실질 수출 모멘텀(가격·환율 제거) — 가속=경기·KOSPI 우호, 둔화=역풍",
     "kr_semi_exports_vol_yoy": "반도체 실질 수출 모멘텀(한국 수출·KOSPI 핵심) — 원화 금액은 환율로 부풀려져 물량이 진짜 신호",
+    "kospi_per": "코스피 이익 대비 주가 — 역사적 백분위로 비쌈/쌈 판단(높을수록 고평가)",
+    "kospi_div_yield": "배당수익률 높을수록 저평가·방어적 — 국채금리와 비교해 주식 상대매력",
 }
 
 

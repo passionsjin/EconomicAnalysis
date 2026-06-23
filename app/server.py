@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from . import presenter
 from . import pipeline
 from . import repository as repo
+from .analysis import portfolio as portfolio_mod
 from .analysis import regime as regime_mod
 from .config import CATEGORIES, settings
 from .db import init_db
@@ -136,6 +137,12 @@ def api_status():
 def api_collect():
     started = pipeline.trigger_async()
     return {"started": started, "reason": None if started else "이미 수집 진행 중"}
+
+
+@app.post("/api/portfolio")
+def api_portfolio(payload: dict):
+    """보유액({자산키: 원화액})으로 포트폴리오 VaR·변동성·손익 계산. 서버 미저장."""
+    return portfolio_mod.compute_portfolio(payload.get("holdings") or {})
 
 
 @app.get("/healthz")

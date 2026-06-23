@@ -372,6 +372,92 @@ async function autoRefreshLoop() {
   }, 30000);
 }
 
+/* ── 내 포트폴리오 리스크(localStorage, 서버 미저장) ── */
+function pfGet() { try { return JSON.parse(localStorage.getItem("pfHoldings") || "{}"); } catch (e) { return {}; } }
+function pfSet(o) { try { localStorage.setItem("pfHoldings", JSON.stringify(o)); } catch (e) {} }
+const PF_CAT = { equity: "주가지수", sector: "미국 섹터", commodity: "원자재", crypto: "암호화폐" };
+
+function pfKRW(n) {
+  if (n == null || isNaN(n)) return "—";
+  const a = Math.abs(n);
+  if (a >= 1e8) return (n / 1e8).toFixed(2) + "억";
+  if (a >= 1e4) return Math.round(n / 1e4).toLocaleString() + "만";
+  return Math.round(n).toLocaleString();
+}
+
+function pfBuildEditor() {
+  const grid = document.getElementById("pfGrid");
+  if (!grid || !window.__HOLDABLE__) return;
+  const held = pfGet();
+  const byCat = {};
+  window.__HOLDABLE__.forEach((a) => { (byCat[a.category] = byCat[a.category] || []).push(a); });
+  let html = "";
+  Object.keys(byCat).forEach((c) => {
+    html += `<div class="pf-cat">${PF_CAT[c] || c}</div>`;
+    byCat[c].forEach((a) => {
+      const v = held[a.key] != null ? held[a.key] : "";
+      html += `<label class="pf-row"><span class="pf-name">${a.label}</span>`
+        + `<input class="pf-input" type="number" min="0" step="any" inputmode="numeric" data-key="${a.key}" value="${v}" placeholder="₩"></label>`;
+    });
+  });
+  grid.innerHTML = html;
+}
+
+function pfRead() {
+  const out = {};
+  document.querySelectorAll("#pfGrid .pf-input").forEach((i) => {
+    const v = parseFloat(i.value);
+    if (!isNaN(v) && v > 0) out[i.dataset.key] = v;
+  });
+  return out;
+}
+
+async function pfCompute() {
+  const holdings = pfRead();
+  pfSet(holdings);
+  const box = document.getElementById("pfResult");
+  if (!box) return;
+  if (!Object.keys(holdings).length) {
+    box.innerHTML = `<div class="pf-empty">보유 자산을 입력하면 포트폴리오 위험을 계산합니다. <b>보유 편집</b>으로 시작하세요.</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="pf-empty">계산 중…</div>`;
+  let r;
+  try {
+    r = await fetch("/api/portfolio", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ holdings }),
+    }).then((x) => x.json());
+  } catch (e) { box.innerHTML = `<div class="pf-empty">계산 실패(네트워크).</div>`; return; }
+  if (!r || !r.ok) { box.innerHTML = `<div class="pf-empty">${(r && r.reason) || "계산 불가"}</div>`; return; }
+  const sgn = (p) => (p > 0 ? "pos" : p < 0 ? "neg" : "zero");
+  const pnl = (p, k) => `<b class="pf-pnl ${sgn(p)}">${p >= 0 ? "+" : ""}${p.toFixed(2)}%</b> <small>₩${pfKRW(k)}</small>`;
+  const bars = r.breakdown.map((b) => `<span class="pf-wseg" style="width:${b.weight}%" title="${b.label} ${b.weight}%"></span>`).join("");
+  const legend = r.breakdown.slice(0, 6).map((b) => `<span class="pf-leg">${b.label} <b>${b.weight}%</b></span>`).join("");
+  box.innerHTML =
+    `<div class="pf-top"><span>평가액 <b>₩${pfKRW(r.total_krw)}</b> · ${r.n_holdings}종</span>`
+    + `<span>연 변동성 <b>${r.vol_annual_pct}%</b></span></div>`
+    + `<div class="pf-vars">`
+    + `<div class="pf-varcard"><span class="pf-vlbl">1일 최대손실 VaR 95%</span><span class="pf-vval">-${r.var95_pct}%</span><span class="pf-vkrw">₩${pfKRW(r.var95_krw)}</span></div>`
+    + `<div class="pf-varcard hi"><span class="pf-vlbl">VaR 99% (악조건)</span><span class="pf-vval">-${r.var99_pct}%</span><span class="pf-vkrw">₩${pfKRW(r.var99_krw)}</span></div>`
+    + `</div>`
+    + `<div class="pf-pnlrow"><span class="pf-pnllbl">손익</span> 1일 ${pnl(r.pnl_1d_pct, r.pnl_1d_krw)} · 1주 ${pnl(r.pnl_1w_pct, r.pnl_1w_krw)} · 1개월 ${pnl(r.pnl_1m_pct, r.pnl_1m_krw)}</div>`
+    + `<div class="pf-bar">${bars}</div><div class="pf-legend">${legend}</div>`
+    + `<div class="pf-foot">역사적 VaR · 최근 ${r.window_days}거래일 분포 · 환율 포함(원화 기준) · 참고용, 투자권유 아님</div>`;
+}
+
+function initPortfolio() {
+  const sec = document.getElementById("portfolio");
+  if (!sec || !window.__HOLDABLE__ || !window.__HOLDABLE__.length) return;
+  pfBuildEditor();
+  const ed = document.getElementById("pfEditor");
+  document.getElementById("pfEditBtn").addEventListener("click", () => { ed.hidden = !ed.hidden; });
+  document.getElementById("pfClose").addEventListener("click", () => { ed.hidden = true; });
+  document.getElementById("pfApply").addEventListener("click", () => { pfCompute(); ed.hidden = true; });
+  document.getElementById("pfClear").addEventListener("click", () => { pfSet({}); pfBuildEditor(); pfCompute(); });
+  if (Object.keys(pfGet()).length) pfCompute();
+}
+
 /* ── 초기화 ── */
 document.addEventListener("DOMContentLoaded", () => {
   applyTimes();
@@ -384,6 +470,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderYieldCurve();
   renderCorrelations();
   renderRegime();
+  initPortfolio();
   autoRefreshLoop();
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 });

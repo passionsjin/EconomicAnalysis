@@ -106,6 +106,31 @@
 </section>
 {% endif %}
 
+{# ───────── ⑦ 레짐 → 권고 자산비중 프리셋(결정층 '성장') ───────── #}
+{% if d.allocation %}
+{% set al = d.allocation %}
+<section class="allocation {{ al.tone }}">
+  <div class="al-head">
+    <span class="al-icon">🎯</span><b>권고 자산비중</b>
+    <span class="al-stage {{ al.tone }}">{{ al.label }} · {{ al.score }}/100</span>
+    {% if not al.is_neutral %}<span class="al-sub">중립 대비 {{ '공격' if al.tone == 'good' else '방어' }} 틸트</span>{% endif %}
+  </div>
+  <div class="al-bar">
+    {% for b in al.buckets %}
+    <span class="al-seg {{ b.key }}" style="width:{{ b.weight }}%"
+          title="{{ b.label }} {{ b.weight }}%{% if b.tilt %} (중립比 {{ '%+d'|format(b.tilt) }}%p){% endif %}">{% if b.weight >= 10 %}{{ b.weight }}{% endif %}</span>
+    {% endfor %}
+  </div>
+  <div class="al-legend">
+    {% for b in al.buckets %}
+    <span class="al-leg"><i class="al-dot {{ b.key }}"></i>{{ b.label }} <b>{{ b.weight }}%</b>{% if b.tilt %} <span class="al-tilt {{ 'up' if b.tilt > 0 else 'down' }}">{{ '%+d'|format(b.tilt) }}%p</span>{% endif %}</span>
+    {% endfor %}
+  </div>
+  <div class="al-why">{{ al.rationale }}</div>
+  <div class="al-caveat">{{ al.caveat }}</div>
+</section>
+{% endif %}
+
 {# ───────── LLM 브리핑 ───────── #}
 <section class="briefing card">
   {% if d.briefing and d.briefing.ok %}

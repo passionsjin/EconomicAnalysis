@@ -324,3 +324,26 @@ body.krw-on .ind[data-krw="1"] .chg.krw{display:inline}
 .ra-chip.na i{background:var(--muted2)}
 .ra-chip.warn{border-color:rgba(240,160,32,.4)} .ra-chip.danger{border-color:rgba(234,57,67,.5)}
 @media(max-width:760px){ .ra-item .ra-msg{display:none} }
+
+/* ⑦ 권고 자산비중 프리셋(레짐 → 행동) */
+.allocation{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--neutral);border-radius:10px;padding:13px 16px;margin-bottom:14px}
+.allocation.good{border-left-color:var(--good)}
+.allocation.warn{border-left-color:var(--warn)}
+.allocation.bad{border-left-color:var(--bad)}
+.al-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
+.al-icon{font-size:15px}
+.al-head b{color:#e6ebf3;font-weight:600}
+.al-stage{font-size:12px;font-weight:600;padding:2px 9px;border-radius:20px;background:var(--bg2);border:1px solid var(--line)}
+.al-stage.good{color:var(--good)} .al-stage.warn{color:var(--warn)} .al-stage.bad{color:var(--bad)}
+.al-sub{font-size:12px;color:var(--muted)}
+.al-bar{display:flex;height:26px;border-radius:7px;overflow:hidden;margin:11px 0 9px;background:var(--bg2);border:1px solid var(--line)}
+.al-seg{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#0b0f16;font-family:'IBM Plex Mono',ui-monospace,monospace;min-width:0;transition:width .3s}
+.al-seg.equity{background:#3b82f6} .al-seg.bond{background:#14b8a6} .al-seg.alt{background:#e0a82e} .al-seg.cash{background:#737d8c}
+.al-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted)}
+.al-leg{display:inline-flex;align-items:center;gap:5px}
+.al-leg b{color:#cbd3e0;font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:500}
+.al-dot{width:9px;height:9px;border-radius:2px;flex:none}
+.al-dot.equity{background:#3b82f6} .al-dot.bond{background:#14b8a6} .al-dot.alt{background:#e0a82e} .al-dot.cash{background:#737d8c}
+.al-tilt{font-size:11px;font-weight:600;color:#97a1b2}
+.al-why{margin-top:10px;font-size:12.5px;color:#aab3c2;line-height:1.5}
+.al-caveat{margin-top:6px;font-size:11px;color:var(--muted2);line-height:1.4}

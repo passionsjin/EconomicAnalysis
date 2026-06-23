@@ -6,6 +6,7 @@ from typing import Optional
 
 from . import repository as repo
 from .analysis import alerts as alerts_mod
+from .analysis import allocation as allocation_mod
 from .analysis import calendar_util
 from .analysis import overlays as overlays_mod
 from .analysis import regime as regime_mod
@@ -276,7 +277,7 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
         return {"empty": True, "groups": [], "health": [], "news": [],
                 "calendar": [], "briefing": None, "briefing_cached": False,
                 "snapshot": None, "regime": None, "alerts": [], "overlays": None,
-                "risk_alerts": None}
+                "risk_alerts": None, "allocation": None}
 
     sid = snap["id"]
     obs = repo.get_observations(sid)
@@ -317,4 +318,6 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
         "overlays": overlays_mod.build_overlays() if snapshot_id is None else None,
         # 리스크 경보도 '현재' 위험상태 도구 → 라이브에서만(순유동성 추세·레짐 delta는 현재 history 의존)
         "risk_alerts": alerts_mod.evaluate_alerts(obs, regime) if snapshot_id is None else None,
+        # 권고 자산비중 = 현재 레짐 점수의 행동 번역 → 라이브에서만(과거 리포트엔 부적합)
+        "allocation": allocation_mod.recommend_allocation(regime) if snapshot_id is None else None,
     }

@@ -392,3 +392,77 @@ body.krw-on .ind[data-krw="1"] .chg.krw{display:inline}
 .pf-clear,.pf-close{background:var(--bg2);color:var(--muted)}
 .pf-clear:hover,.pf-close:hover{color:#e6ebf3;border-color:var(--muted2)}
 @media(max-width:760px){ .pf-grid{grid-template-columns:1fr} .pf-vars{flex-direction:column} }
+
+/* ══════════════════════════════════════════════════════════════════
+   정제·깊이 폴리시 레이어 — 시각 개선(CSS only). 되돌리기: 이 블록만 삭제.
+   레이아웃/마크업/로직 변경 없음. 깊이·정렬·스캔성·촉감만 고급화.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* 1) 전역 깊이: 상단 은은한 악센트 글로우(고정) */
+body{
+  background:
+    radial-gradient(1100px 460px at 50% -170px, rgba(59,130,246,.10), transparent 70%),
+    radial-gradient(820px 380px at 86% -60px, rgba(99,102,241,.07), transparent 66%),
+    linear-gradient(180deg,#0b0e14,#0a0d12 60%);
+  background-attachment:fixed;
+}
+
+/* 커스텀 스크롤바(다크) — 패널 내부 스크롤·전역 모두 */
+*{scrollbar-width:thin;scrollbar-color:#2b3445 transparent}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#222b3a;border:3px solid transparent;
+  border-radius:10px;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:#34405a;background-clip:content-box}
+
+/* 2) 상단바: 스크롤 중에도 본문과 분리되도록 미세 하단 경계 */
+.topbar{border-bottom:1px solid rgba(35,44,59,.55)}
+
+/* 3) 카드 깊이: 일관된 그림자 + 상단 1px 하이라이트(살짝 떠 보이게) */
+.card,.signal-banner,.risk-alerts,.allocation,.overlays .ov-card{
+  box-shadow:0 1px 0 rgba(255,255,255,.035) inset,
+             0 1px 2px rgba(0,0,0,.4),
+             0 12px 30px -14px rgba(0,0,0,.55);
+}
+.card{transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease}
+
+/* 4) 섹션 헤더 스캔성: 지표 그룹 제목 앞에 악센트 바 */
+.group>.group-title{position:relative;padding-left:12px}
+.group>.group-title::before{content:"";position:absolute;left:0;top:50%;
+  transform:translateY(-50%);width:3px;height:13px;border-radius:2px;
+  background:linear-gradient(180deg,var(--accent),var(--accent2))}
+
+/* 5) 히어로 신호등: 존재감 + 맥박 링 애니메이션(톤별 색) */
+.signal-banner{padding:16px 20px}
+.signal-banner.good .sig-dot{--ring:22,199,132}
+.signal-banner.bad  .sig-dot{--ring:234,57,67}
+.signal-banner.warn .sig-dot{--ring:240,160,32}
+.sig-dot{position:relative}
+.sig-dot::after{content:"";position:absolute;inset:0;border-radius:50%;
+  animation:sigpulse 2.6s ease-out infinite}
+@keyframes sigpulse{
+  0%{box-shadow:0 0 0 0 rgba(var(--ring,125,134,150),.55)}
+  70%{box-shadow:0 0 0 13px rgba(var(--ring,125,134,150),0)}
+  100%{box-shadow:0 0 0 0 rgba(var(--ring,125,134,150),0)}
+}
+
+/* 6) 지표 카드: 톤 악센트를 페이드 그라데이션으로, 호버 리프트 강화 */
+.ind.good::before,.ind.bad::before,.ind.neutral::before{
+  width:3px;background:linear-gradient(180deg,var(--neutral),rgba(125,134,150,0) 88%)}
+.ind.good::before{background:linear-gradient(180deg,var(--good),rgba(22,199,132,0) 88%)}
+.ind.bad::before{background:linear-gradient(180deg,var(--bad),rgba(234,57,67,0) 88%)}
+.ind:hover{border-color:var(--accent);transform:translateY(-2px);
+  box-shadow:0 1px 2px rgba(0,0,0,.4),0 16px 30px -14px rgba(0,0,0,.6),
+             0 0 0 1px rgba(59,130,246,.22)}
+.ind-value{font-variant-numeric:tabular-nums}
+
+/* 7) 촉감: 버튼 눌림, 포커스 링(접근성+폴리시) */
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible,.toolbar input:focus-visible,.pf-input:focus-visible,
+#ind-search:focus-visible{outline:2px solid rgba(59,130,246,.5);outline-offset:1px}
+
+/* 8) 모션 최소화 선호 존중 */
+@media (prefers-reduced-motion: reduce){
+  .sig-dot::after{animation:none}
+  .ind,.card,.btn{transition:none}
+}

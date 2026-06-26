@@ -179,10 +179,13 @@
     <div class="brief-head">
       <span class="badge {{ s[1] }}">{{ s[0] }}</span>
       <h2>{{ d.briefing.headline or '시황 브리핑' }}</h2>
-      {% if d.briefing_cached %}<span class="pill warn" title="현재 수집의 브리핑 생성이 실패해 직전 성공 브리핑을 표시 중">캐시 · 직전</span>{% endif %}
+      {% if d.briefing_cached %}<span class="pill info" title="이번 수집의 브리핑이 아직 생성 중이거나 실패해, 직전에 작성된 브리핑을 보여주는 중입니다(지표 데이터는 최신).">직전 브리핑 표시</span>{% endif %}
     </div>
     {% if d.briefing.summary %}<p class="brief-summary">{{ d.briefing.summary }}</p>{% endif %}
-    <div class="brief-body markdown" id="brief-body"></div>
+    <details class="brief-more">
+      <summary>📄 전체 브리핑 펼치기 — 시장 총평·핵심 동인·자산별 코멘트·리스크</summary>
+      <div class="brief-body markdown" id="brief-body"></div>
+    </details>
     <div class="brief-meta">
       <span>🤖 {{ d.briefing.model or 'Claude Code' }}</span>
       <time class="kst" data-utc="{{ d.briefing.ts_utc }}">—</time>

@@ -461,6 +461,15 @@ body.easy-on .easyline{display:flex}
 /* ⑪ 갱신주기 칩(쉬운 설명) */
 .easyline .ei-freq{color:var(--muted2);white-space:nowrap}
 
+/* ⑧ 브리핑 본문 접기 + 캐시 뱃지 순화 */
+.brief-more{margin-top:4px}
+.brief-more>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  font-size:12.5px;color:var(--accent);padding:7px 0;user-select:none}
+.brief-more>summary::-webkit-details-marker,.brief-more>summary::marker{display:none;content:""}
+.brief-more>summary:hover{text-decoration:underline}
+.brief-more[open]>summary{color:var(--muted);margin-bottom:4px}
+.pill.info{background:var(--neutral-bg);color:var(--muted)}
+
 /* ══════════════════════════════════════════════════════════════════
    정제·깊이 폴리시 레이어 — 시각 개선(CSS only). 되돌리기: 이 블록만 삭제.
    레이아웃/마크업/로직 변경 없음. 깊이·정렬·스캔성·촉감만 고급화.

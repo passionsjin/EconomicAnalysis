@@ -177,6 +177,20 @@ function restoreKrw() {
   document.body.classList.toggle("krw-on", on);
 }
 
+/* ── 쉬운 설명 토글(body.easy-on → CSS가 카드별 설명줄/범례 표시) ── */
+function toggleEasy() {
+  const on = !!document.getElementById("easy-toggle")?.checked;
+  document.body.classList.toggle("easy-on", on);
+  try { localStorage.setItem("easyView", on ? "1" : "0"); } catch (e) {}
+}
+function restoreEasy() {
+  let on = false;
+  try { on = localStorage.getItem("easyView") === "1"; } catch (e) {}
+  const cb = document.getElementById("easy-toggle");
+  if (cb) cb.checked = on;
+  document.body.classList.toggle("easy-on", on);
+}
+
 /* ── 자산간 상관 히트맵 ── */
 function corrColor(c) {
   if (c === null || c === undefined) return "transparent";
@@ -467,6 +481,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (sparks.length) pool([...sparks], drawSpark, 6);
   applyFavs();
   restoreKrw();
+  restoreEasy();
   renderYieldCurve();
   renderCorrelations();
   renderRegime();
@@ -479,3 +494,4 @@ window.openChart = openChart;
 window.closeModal = closeModal;
 window.collectNow = collectNow;
 window.toggleKrw = toggleKrw;
+window.toggleEasy = toggleEasy;

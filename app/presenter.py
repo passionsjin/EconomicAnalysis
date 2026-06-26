@@ -76,6 +76,33 @@ def _pct_label(pct: Optional[float]) -> tuple[Optional[str], Optional[str]]:
     return "매우 낮음", "vl"
 
 
+def _pct_plain(pct: Optional[float], span: Optional[str]) -> str:
+    """백분위 → 평이한 위치 표현(예: '최근 약 5년 중 상위 17%'). %ile 외계어 대체용."""
+    if pct is None:
+        return ""
+    base = f"최근 {span} 중 " if span else ""
+    p = round(pct)
+    tag = " (높은 편)" if p >= 70 else " (낮은 편)" if p <= 30 else ""
+    if p >= 50:
+        return f"{base}상위 {100 - p}%{tag}"
+    return f"{base}하위 {p}%{tag}"
+
+
+def _easy_impact(ind: Indicator) -> Optional[dict]:
+    """'쉬운 설명' 모드용 — 오를수록 주식에 호재/부담인지 평이 신호(up_is_good 기반).
+
+    주가지수·섹터 자체는 '오를수록 호재'가 자명하므로 생략(노이즈 방지). 방향이
+    모호한 지표(금리·환율·비율 등 up_is_good=None)는 태그 없이 so_what 설명에 맡긴다.
+    """
+    if ind.category in ("equity", "sector"):
+        return None
+    if ind.up_is_good is True:
+        return {"cls": "good", "txt": "오를수록 주식에 호재"}
+    if ind.up_is_good is False:
+        return {"cls": "bad", "txt": "오를수록 주식에 부담"}
+    return None
+
+
 def _krw_rates(obs: dict) -> dict:
     """관측값에서 호가통화→원화 환율(현재, 직전)을 구성. USD/JPY/EUR/CNY 지원(HKD 등 제외)."""
     def vp(k):
@@ -187,6 +214,8 @@ def _indicator_view(ind: Indicator, obs: dict, rates: Optional[dict] = None) -> 
         "pct_span": ctx["span"] if ctx else None,            # 백분위 실제 기간(예: '약 5년')
         "pct_label": pct_label,                              # 직관 라벨(매우 낮음~매우 높음)
         "pct_level": pct_level,                              # 색상 레벨(vl/l/m/h/vh)
+        "pct_plain": _pct_plain(ctx["percentile"] if ctx else None,
+                                ctx["span"] if ctx else None),  # 평이 위치(쉬운 설명)
         "zscore": ctx["zscore"] if ctx else None,
         "anomaly": bool(ctx and ctx["anomaly"]),             # |z|≥3 통계적 이상치
         "momentum": mom,                                     # {w1,m1,m3,ytd} (일별만)
@@ -203,6 +232,7 @@ def _indicator_view(ind: Indicator, obs: dict, rates: Optional[dict] = None) -> 
         "krw_change_main_fmt": krw_change_main_fmt,          # 원화기준 등락%(FX 포함)
         "krw_tone": krw_tone,
         "so_what": so_what(ind.key),                         # 핵심지표 한 줄 함의
+        "easy_impact": _easy_impact(ind),                    # 쉬운 설명: 오를수록 호재/부담
         "error": row.get("error"),
     }
 

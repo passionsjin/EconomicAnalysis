@@ -247,9 +247,12 @@
   <label class="auto"><input type="checkbox" id="fav-only" onchange="filterIndicators()"> 즐겨찾기만</label>
   <label class="auto"><input type="checkbox" id="prio-only" onchange="filterIndicators()"> 핵심지표만</label>
   <label class="auto" title="해외 가격자산을 원화로 환산 표시(등락도 환율 포함)"><input type="checkbox" id="krw-toggle" onchange="toggleKrw()"> ₩ 원화환산</label>
+  <label class="auto" title="초보자용 — 카드마다 '주식에 호재/부담'과 한 줄 뜻을 펼쳐 표시(폰에서도 보임)"><input type="checkbox" id="easy-toggle" onchange="toggleEasy()"> 🔰 쉬운 설명</label>
   <span class="spacer"></span>
   <button class="btn ghost" onclick="exportCsv()" title="표시 중인 지표를 CSV로">⬇ CSV</button>
 </div>
+
+<div class="easy-legend">🔰 <b>쉬운 설명</b> 켜짐 — 카드마다 <b class="good">🟢 오를수록 호재</b> · <b class="bad">🔴 오를수록 부담</b> 와 한 줄 뜻을 표시합니다. <b>%p</b> = %포인트(금리·비율의 절대 변화) · <b>상위 N%</b> = 역사적으로 높은 편.</div>
 
 {# ───────── 지표 그룹 ───────── #}
 {% for g in d.groups %}
@@ -281,6 +284,13 @@
           <span class="err" title="{{ it.error }}">수집 실패</span>
         {% endif %}
       </div>
+      {% if it.ok and (it.easy_impact or it.so_what or it.pct_plain) %}
+      <div class="easyline">
+        {% if it.easy_impact %}<span class="ei {{ it.easy_impact.cls }}">{{ '🟢' if it.easy_impact.cls == 'good' else '🔴' }} {{ it.easy_impact.txt }}</span>{% endif %}
+        {% if it.pct_plain %}<span class="ei-pos">위치 {{ it.pct_plain }}</span>{% endif %}
+        {% if it.so_what %}<span class="ei-so">💡 {{ it.so_what }}</span>{% endif %}
+      </div>
+      {% endif %}
       {% if it.ok and it.percentile is not none %}
       <div class="pctbar lvl-{{ it.pct_level }}" title="{{ it.pct_label }} — 백분위 {{ it.percentile }}%ile · 최근 {{ it.pct_span }} 분포 내 위치(표본 {{ it.pct_n }}개) · 100%ile=기간 최고, 0%ile=기간 최저">
         <span style="width:{{ it.percentile }}%"></span><em>{{ it.pct_label }} · {{ it.percentile }}%ile</em>

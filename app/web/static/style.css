@@ -393,6 +393,20 @@ body.krw-on .ind[data-krw="1"] .chg.krw{display:inline}
 .pf-clear:hover,.pf-close:hover{color:#e6ebf3;border-color:var(--muted2)}
 @media(max-width:760px){ .pf-grid{grid-template-columns:1fr} .pf-vars{flex-direction:column} }
 
+/* ── 🔰 쉬운 설명 모드(③·⑤·⑩) — 기본 숨김, body.easy-on 일 때만 표시 ── */
+.easy-legend,.easyline{display:none}
+body.easy-on .easy-legend{display:block}
+body.easy-on .easyline{display:flex}
+.easy-legend{font-size:11.5px;color:var(--muted);background:var(--card2);
+  border:1px solid var(--line);border-radius:9px;padding:8px 13px;margin:0 0 14px;line-height:1.55}
+.easy-legend b{color:#cbd3e0}
+.easyline{flex-wrap:wrap;gap:3px 9px;margin-top:8px;padding-top:7px;
+  border-top:1px dashed var(--line);font-size:10.8px;line-height:1.5;color:var(--muted)}
+.easyline .ei{font-weight:700;white-space:nowrap}
+.easyline .ei.good{color:var(--good)} .easyline .ei.bad{color:var(--bad)}
+.easyline .ei-pos{color:var(--muted2);white-space:nowrap}
+.easyline .ei-so{flex-basis:100%;color:#aab3c2}
+
 /* ══════════════════════════════════════════════════════════════════
    정제·깊이 폴리시 레이어 — 시각 개선(CSS only). 되돌리기: 이 블록만 삭제.
    레이아웃/마크업/로직 변경 없음. 깊이·정렬·스캔성·촉감만 고급화.

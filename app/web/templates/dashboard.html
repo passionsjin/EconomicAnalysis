@@ -75,6 +75,15 @@
 </section>
 {% endif %}
 
+{# ───────── 오늘 한 줄 결론: 신호등+경보 화해(행동 번역) ───────── #}
+{% if d.verdict %}
+<section class="verdict {{ d.verdict.tone }}">
+  <span class="vd-ico">📌</span>
+  <span class="vd-tag">{{ d.verdict.tag }}</span>
+  <span class="vd-line">{{ d.verdict.line }}</span>
+</section>
+{% endif %}
+
 {# ───────── ⑤ 리스크 경보: 위험게이지 임계선 감시(하방 보호) ───────── #}
 {% if d.risk_alerts %}
 {% set ra = d.risk_alerts %}
@@ -127,6 +136,7 @@
     {% endfor %}
   </div>
   <div class="al-why">{{ al.rationale }}</div>
+  <div class="al-mine" id="alMine" hidden></div>
   <div class="al-caveat">{{ al.caveat }}</div>
 </section>
 {% endif %}
@@ -378,5 +388,6 @@
   window.__HISTORICAL__ = {{ 'true' if historical else 'false' }};
   window.__YIELD_CURVE__ = {{ (d.overlays.yield_curve if d.overlays and d.overlays.yield_curve else none) | tojson }};
   window.__HOLDABLE__ = {{ (d.holdable if d.holdable else []) | tojson }};
+  window.__ALLOCATION__ = {{ (d.allocation if d.allocation else none) | tojson }};
 </script>
 {% endblock %}

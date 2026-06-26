@@ -399,6 +399,34 @@ function pfKRW(n) {
   return Math.round(n).toLocaleString();
 }
 
+/* ⑨ 권고 자산비중 ↔ 내 보유 비중 갭(평가액에 권고 적용 + 입력자산 기준 비교) */
+const PF_BUCKET = { equity: "equity", sector: "equity", commodity: "alt", crypto: "alt" };
+function renderAllocMine(total, breakdown) {
+  const box = document.getElementById("alMine");
+  const al = window.__ALLOCATION__;
+  if (!box || !al || !al.buckets || !total) { if (box) box.hidden = true; return; }
+  const catOf = {};
+  (window.__HOLDABLE__ || []).forEach((a) => { catOf[a.key] = a.category; });
+  const mine = { equity: 0, bond: 0, alt: 0, cash: 0 };
+  (breakdown || []).forEach((b) => { mine[PF_BUCKET[catOf[b.key]] || "alt"] += b.weight; });
+  const rows = al.buckets.map((b) => {
+    const amt = Math.round(total * b.weight / 100);
+    const my = Math.round(mine[b.key] || 0);
+    const gap = my - b.weight;
+    const cls = gap >= 1 ? "over" : gap <= -1 ? "under" : "";
+    const gapTxt = Math.abs(gap) < 1 ? "≈" : (gap > 0 ? "+" : "") + gap + "%p";
+    return `<div class="alm-row"><span class="alm-k"><i class="al-dot ${b.key}"></i>${b.label}</span>`
+      + `<span class="alm-rec">권고 ${b.weight}% <small>₩${pfKRW(amt)}</small></span>`
+      + `<span class="alm-my">내 ${my}%</span>`
+      + `<span class="alm-gap ${cls}">${gapTxt}</span></div>`;
+  }).join("");
+  box.innerHTML =
+    `<div class="alm-head">내 평가액 <b>₩${pfKRW(total)}</b> 에 권고 비중 적용 <small>(입력 자산 기준)</small></div>`
+    + rows
+    + `<div class="alm-note">입력 자산은 모두 위험자산입니다 — 권고의 <b>현금·채권</b> 비중은 이 도구에 없는 예금·채권으로 채우세요. <span class="alm-over">초과(+)</span>는 위험 과다, <span class="alm-under">미달(−)</span>은 매수 여력. 참고용·투자권유 아님.</div>`;
+  box.hidden = false;
+}
+
 function pfBuildEditor() {
   const grid = document.getElementById("pfGrid");
   if (!grid || !window.__HOLDABLE__) return;
@@ -433,6 +461,7 @@ async function pfCompute() {
   if (!box) return;
   if (!Object.keys(holdings).length) {
     box.innerHTML = `<div class="pf-empty">보유 자산을 입력하면 포트폴리오 위험을 계산합니다. <b>보유 편집</b>으로 시작하세요.</div>`;
+    renderAllocMine(0, []);
     return;
   }
   box.innerHTML = `<div class="pf-empty">계산 중…</div>`;
@@ -458,6 +487,7 @@ async function pfCompute() {
     + `<div class="pf-pnlrow"><span class="pf-pnllbl">손익</span> 1일 ${pnl(r.pnl_1d_pct, r.pnl_1d_krw)} · 1주 ${pnl(r.pnl_1w_pct, r.pnl_1w_krw)} · 1개월 ${pnl(r.pnl_1m_pct, r.pnl_1m_krw)}</div>`
     + `<div class="pf-bar">${bars}</div><div class="pf-legend">${legend}</div>`
     + `<div class="pf-foot">역사적 VaR · 최근 ${r.window_days}거래일 분포 · 환율 포함(원화 기준) · 참고용, 투자권유 아님</div>`;
+  renderAllocMine(r.total_krw, r.breakdown);
 }
 
 function initPortfolio() {

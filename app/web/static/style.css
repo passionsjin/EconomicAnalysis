@@ -407,6 +407,39 @@ body.easy-on .easyline{display:flex}
 .easyline .ei-pos{color:var(--muted2);white-space:nowrap}
 .easyline .ei-so{flex-basis:100%;color:#aab3c2}
 
+/* ── ② 오늘 한 줄 결론(신호등+경보 화해) ── */
+.verdict{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 16px;
+  padding:12px 16px;border-radius:12px;border:1px solid var(--line);
+  border-left:3px solid var(--neutral);background:var(--card2)}
+.verdict.good{border-left-color:var(--good)}
+.verdict.warn{border-left-color:var(--warn)}
+.verdict.bad{border-left-color:var(--bad)}
+.vd-ico{font-size:14px;flex:none}
+.vd-tag{font-weight:700;font-size:12.5px;white-space:nowrap;padding:2px 10px;
+  border-radius:20px;background:var(--bg2);border:1px solid var(--line)}
+.verdict.good .vd-tag{color:var(--good)}
+.verdict.warn .vd-tag{color:var(--warn)}
+.verdict.bad .vd-tag{color:var(--bad)}
+.vd-line{flex:1;min-width:180px;font-size:13px;color:#cdd6e4;line-height:1.55}
+
+/* ── ⑨ 권고 비중 ↔ 내 보유 갭 ── */
+.al-mine{margin-top:11px;padding-top:10px;border-top:1px solid var(--line)}
+.alm-head{font-size:12px;color:var(--muted);margin-bottom:7px}
+.alm-head b{color:#e6ebf3;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.alm-head small{color:var(--muted2)}
+.alm-row{display:grid;grid-template-columns:84px 1fr auto 58px;align-items:center;
+  gap:8px;font-size:12px;padding:2.5px 0}
+.alm-k{display:inline-flex;align-items:center;gap:6px;color:#c2cad6;white-space:nowrap}
+.alm-rec{color:var(--muted)}
+.alm-rec small{color:var(--muted2);font-family:'IBM Plex Mono',ui-monospace,monospace}
+.alm-my{color:#aab3c2;font-family:'IBM Plex Mono',ui-monospace,monospace;text-align:right;white-space:nowrap}
+.alm-gap{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:600;text-align:right}
+.alm-gap.over{color:var(--warn)} .alm-gap.under{color:var(--accent)}
+.alm-note{font-size:10.5px;color:var(--muted2);margin-top:9px;line-height:1.5}
+.alm-note b{color:#aab3c2}
+.alm-over{color:var(--warn)} .alm-under{color:var(--accent)}
+@media(max-width:760px){ .alm-row{grid-template-columns:70px 1fr auto 48px} }
+
 /* ══════════════════════════════════════════════════════════════════
    정제·깊이 폴리시 레이어 — 시각 개선(CSS only). 되돌리기: 이 블록만 삭제.
    레이아웃/마크업/로직 변경 없음. 깊이·정렬·스캔성·촉감만 고급화.

@@ -12,6 +12,7 @@ from .analysis import overlays as overlays_mod
 from .analysis import portfolio as portfolio_mod
 from .analysis import regime as regime_mod
 from .analysis import stats as stats_mod
+from .analysis import verdict as verdict_mod
 from .collectors.base import ALL_COLLECTORS
 from .config import (CATEGORIES, INDICATORS, INDICATOR_BY_KEY, Indicator,
                      priority_of, source_tier, is_krw_convertible, so_what)
@@ -308,7 +309,7 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
         return {"empty": True, "groups": [], "health": [], "news": [],
                 "calendar": [], "briefing": None, "briefing_cached": False,
                 "snapshot": None, "regime": None, "alerts": [], "overlays": None,
-                "risk_alerts": None, "allocation": None, "holdable": []}
+                "risk_alerts": None, "allocation": None, "holdable": [], "verdict": None}
 
     sid = snap["id"]
     obs = repo.get_observations(sid)
@@ -334,6 +335,9 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
         except Exception:  # noqa: BLE001
             regime = None
 
+    # 리스크 경보·권고비중은 '현재' 위험상태 도구 → 라이브에서만(history 의존)
+    risk_alerts = alerts_mod.evaluate_alerts(obs, regime) if snapshot_id is None else None
+
     return {
         "empty": False,
         "snapshot": snap,
@@ -347,10 +351,11 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
         "alerts": _recent_alerts(),
         # 오버레이는 현재 history 기준 → 과거 스냅샷 리포트엔 부적합(시점 불일치)하므로 라이브에서만
         "overlays": overlays_mod.build_overlays() if snapshot_id is None else None,
-        # 리스크 경보도 '현재' 위험상태 도구 → 라이브에서만(순유동성 추세·레짐 delta는 현재 history 의존)
-        "risk_alerts": alerts_mod.evaluate_alerts(obs, regime) if snapshot_id is None else None,
+        "risk_alerts": risk_alerts,
         # 권고 자산비중 = 현재 레짐 점수의 행동 번역 → 라이브에서만(과거 리포트엔 부적합)
         "allocation": allocation_mod.recommend_allocation(regime) if snapshot_id is None else None,
+        # 신호등+경보를 화해시킨 '오늘 한 줄 결론'(라이브에서만; 경보 의존)
+        "verdict": verdict_mod.make_verdict(regime, risk_alerts) if snapshot_id is None else None,
         # 포트폴리오 입력기용 보유가능 자산(정적 목록; VaR 계산은 /api/portfolio)
         "holdable": portfolio_mod.holdable_assets(),
     }

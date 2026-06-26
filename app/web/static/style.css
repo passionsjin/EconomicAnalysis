@@ -406,6 +406,13 @@ body.easy-on .easyline{display:flex}
 .easyline .ei.good{color:var(--good)} .easyline .ei.bad{color:var(--bad)}
 .easyline .ei-pos{color:var(--muted2);white-space:nowrap}
 .easyline .ei-so{flex-basis:100%;color:#aab3c2}
+/* B: 리스크행 σ·MDD 쉬운말(쉬운 설명 ON 일 때만) */
+.easy-gloss{display:none}
+body.easy-on .easy-gloss{display:inline;color:var(--muted2);font-style:normal;margin-left:3px}
+/* C: 쉬운 설명 ON 이면 pctbar 원문 'N%ile' 숨김(easyline '상위 N%'와 중복 제거) */
+body.easy-on .pctbar>em{display:none}
+/* D: 월/주별 발표지표 신선도 = 경고(⏱) 아닌 차분한 달력 안내(📅) */
+.agecal{color:var(--muted2);font-size:10.5px;cursor:help;white-space:nowrap}
 
 /* ── ② 오늘 한 줄 결론(신호등+경보 화해) ── */
 .verdict{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 16px;

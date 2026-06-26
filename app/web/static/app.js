@@ -184,8 +184,10 @@ function toggleEasy() {
   try { localStorage.setItem("easyView", on ? "1" : "0"); } catch (e) {}
 }
 function restoreEasy() {
-  let on = false;
-  try { on = localStorage.getItem("easyView") === "1"; } catch (e) {}
+  // 첫 방문(미설정)=ON(초보 접근성) · 한 번이라도 토글하면 그 선택을 유지
+  let v = null;
+  try { v = localStorage.getItem("easyView"); } catch (e) {}
+  const on = (v === null) ? true : (v === "1");
   const cb = document.getElementById("easy-toggle");
   if (cb) cb.checked = on;
   document.body.classList.toggle("easy-on", on);

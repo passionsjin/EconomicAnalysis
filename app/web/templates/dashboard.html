@@ -298,7 +298,7 @@
           {% if it.has_change %}<span class="basis" title="변화 기준">{{ it.basis }}</span>{% endif %}
           {% if it.change_sub_fmt %}<span class="chgabs {{ it.tone }}">{{ it.change_sub_fmt }}</span>{% endif %}
           {% if it.momentum and it.momentum.m1 is not none %}<span class="mom" title="1개월 모멘텀">1M {{ '%+.1f'|format(it.momentum.m1) }}%</span>{% endif %}
-          {% if it.stale %}<span class="agewarn" title="데이터가 오래됨(신선도 경고)">⏱{{ it.age_days }}일전</span>{% endif %}
+          {% if it.stale %}{% if it.freq == 'D' %}<span class="agewarn" title="데이터가 오래됨(신선도 경고)">⏱{{ it.age_days }}일전</span>{% else %}<span class="agecal" title="{{ '월간' if it.freq == 'M' else '주간' }} 발표 지표 — 다음 발표 전이라 정상일 수 있습니다">📅 {{ it.age_days }}일전</span>{% endif %}{% endif %}
           {% if it.so_what %}<span class="sowhat" title="{{ it.so_what }}">💡</span>{% endif %}
           {% if it.note %}<span class="note" title="{{ it.note }}">ⓘ</span>{% endif %}
         {% else %}
@@ -321,8 +321,8 @@
       {% if it.ok and (it.dist_high is not none or it.rvol is not none) %}
       <div class="riskrow" title="52주 고점 {{ it.hi52|round(2) }} · 저점 {{ it.lo52|round(2) }}{% if it.mdd is not none %} · 최대낙폭 {{ it.mdd }}%{% endif %}{% if it.rvol is not none %} · 실현변동성(연율·30일) {{ it.rvol }}%{% endif %}">
         {% if it.dist_high is not none %}<span class="rk">고점 대비 {{ '%+.0f'|format(it.dist_high) }}%</span>{% endif %}
-        {% if it.rvol is not none %}<span class="rk">σ{{ it.rvol }}%</span>{% endif %}
-        {% if it.mdd is not none %}<span class="rk">MDD {{ '%.0f'|format(it.mdd) }}%</span>{% endif %}
+        {% if it.rvol is not none %}<span class="rk">σ{{ it.rvol }}%<em class="easy-gloss">연변동성(출렁임)</em></span>{% endif %}
+        {% if it.mdd is not none %}<span class="rk">MDD {{ '%.0f'|format(it.mdd) }}%<em class="easy-gloss">최대낙폭(고점→저점)</em></span>{% endif %}
       </div>
       {% endif %}
       <canvas class="spark" data-key="{{ it.key }}" data-tone="{{ it.tone }}" height="34"></canvas>

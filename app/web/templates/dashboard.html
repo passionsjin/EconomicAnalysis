@@ -27,15 +27,23 @@
 </header>
 
 <div class="healthstrip">
-  {% for h in d.health %}
-    <span class="hbadge {{ h.state }}" title="{{ h.message }} · {{ h.latency_ms }}ms">
-      <i></i>{{ h.label }}
-      {% if h.state == 'idle' %}<small>비활성</small>
-      {% elif h.state == 'down' %}<small>오류</small>
-      {% elif h.state == 'partial' %}<small>{{ h.fetched }}✓ {{ h.failed }}✕</small>
-      {% else %}<small>{{ h.fetched }}</small>{% endif %}
-    </span>
-  {% endfor %}
+  {% set n_bad = d.health|selectattr('state','equalto','down')|list|length %}
+  {% set n_part = d.health|selectattr('state','equalto','partial')|list|length %}
+  {% set hstate = 'down' if n_bad else 'partial' if n_part else 'ok' %}
+  <details class="healthwrap">
+    <summary class="hsummary {{ hstate }}"><i></i>{% if hstate == 'down' %}데이터 오류 {{ n_bad }}건{% elif hstate == 'partial' %}데이터 일부 지연 {{ n_part }}건{% else %}데이터 정상{% endif %}<small>{{ d.health|length }}개 소스 · 자세히</small></summary>
+    <div class="hbadges">
+      {% for h in d.health %}
+        <span class="hbadge {{ h.state }}" title="{{ h.message }} · {{ h.latency_ms }}ms">
+          <i></i>{{ h.label }}
+          {% if h.state == 'idle' %}<small>비활성</small>
+          {% elif h.state == 'down' %}<small>오류</small>
+          {% elif h.state == 'partial' %}<small>{{ h.fetched }}✓ {{ h.failed }}✕</small>
+          {% else %}<small>{{ h.fetched }}</small>{% endif %}
+        </span>
+      {% endfor %}
+    </div>
+  </details>
   {% if d.regime %}
     <span class="hbadge regime {{ d.regime.tone }}" title="{{ d.regime.tip }}">시장 분위기: {{ d.regime.short }}{% if d.regime.score is not none %} <b>{{ d.regime.score }}</b>{% endif %} <span class="hbadge-help">ⓘ</span></span>
   {% endif %}
@@ -298,6 +306,7 @@
       <div class="easyline">
         {% if it.easy_impact %}<span class="ei {{ it.easy_impact.cls }}">{{ '🟢' if it.easy_impact.cls == 'good' else '🔴' }} {{ it.easy_impact.txt }}</span>{% endif %}
         {% if it.pct_plain %}<span class="ei-pos">위치 {{ it.pct_plain }}</span>{% endif %}
+        {% if it.freq and it.freq != 'D' %}<span class="ei-freq">{{ '월간' if it.freq == 'M' else '주간' }} 지표 · {{ '한 달' if it.freq == 'M' else '한 주' }}에 한 번 갱신(날짜 오래돼 보여도 정상)</span>{% endif %}
         {% if it.so_what %}<span class="ei-so">💡 {{ it.so_what }}</span>{% endif %}
       </div>
       {% endif %}

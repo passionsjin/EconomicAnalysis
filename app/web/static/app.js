@@ -481,8 +481,8 @@ async function pfCompute() {
     `<div class="pf-top"><span>평가액 <b>₩${pfKRW(r.total_krw)}</b> · ${r.n_holdings}종</span>`
     + `<span>연 변동성 <b>${r.vol_annual_pct}%</b></span></div>`
     + `<div class="pf-vars">`
-    + `<div class="pf-varcard"><span class="pf-vlbl">1일 최대손실 VaR 95%</span><span class="pf-vval">-${r.var95_pct}%</span><span class="pf-vkrw">₩${pfKRW(r.var95_krw)}</span></div>`
-    + `<div class="pf-varcard hi"><span class="pf-vlbl">VaR 99% (악조건)</span><span class="pf-vval">-${r.var99_pct}%</span><span class="pf-vkrw">₩${pfKRW(r.var99_krw)}</span></div>`
+    + `<div class="pf-varcard"><span class="pf-vlbl">하루 손실 가능액 · VaR 95%</span><span class="pf-vval">-${r.var95_pct}%</span><span class="pf-vkrw">₩${pfKRW(r.var95_krw)}</span><span class="pf-vfreq">약 20일 중 1일은 이보다 더 빠질 수 있어요 — 흔한 범위</span></div>`
+    + `<div class="pf-varcard hi"><span class="pf-vlbl">나쁜 날 · VaR 99%</span><span class="pf-vval">-${r.var99_pct}%</span><span class="pf-vkrw">₩${pfKRW(r.var99_krw)}</span><span class="pf-vfreq">약 100일 중 1일 꼴의 드문 손실 추정</span></div>`
     + `</div>`
     + `<div class="pf-pnlrow"><span class="pf-pnllbl">손익</span> 1일 ${pnl(r.pnl_1d_pct, r.pnl_1d_krw)} · 1주 ${pnl(r.pnl_1w_pct, r.pnl_1w_krw)} · 1개월 ${pnl(r.pnl_1m_pct, r.pnl_1m_krw)}</div>`
     + `<div class="pf-bar">${bars}</div><div class="pf-legend">${legend}</div>`

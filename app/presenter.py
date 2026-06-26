@@ -205,6 +205,7 @@ def _indicator_view(ind: Indicator, obs: dict, rates: Optional[dict] = None) -> 
         "change_main_fmt": change_main_fmt,   # 주 표시(%p 또는 상대%)
         "change_sub_fmt": change_sub_fmt,     # 보조 표시(절대 변화; % 지표는 생략)
         "basis": _BASIS_LABEL.get(ind.freq, "전일"),  # 변화 기준(전일/전주/전월)
+        "freq": ind.freq,                             # D/W/M — 갱신주기 안내(쉬운 설명)
         "sign": ("pos" if (delta or 0) > 0 else "neg" if (delta or 0) < 0 else "zero"),
         "tone": _tone(ind, delta),
         "as_of": row.get("as_of"),

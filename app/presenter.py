@@ -83,9 +83,14 @@ def _pct_plain(pct: Optional[float], span: Optional[str]) -> str:
         return ""
     base = f"최근 {span} 중 " if span else ""
     p = round(pct)
+    top = 100 - p
+    if top <= 0:
+        return f"{base}최고 수준 (역대 상단)"
+    if p <= 0:
+        return f"{base}최저 수준 (역대 하단)"
     tag = " (높은 편)" if p >= 70 else " (낮은 편)" if p <= 30 else ""
     if p >= 50:
-        return f"{base}상위 {100 - p}%{tag}"
+        return f"{base}상위 {top}%{tag}"
     return f"{base}하위 {p}%{tag}"
 
 

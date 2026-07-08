@@ -15,6 +15,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from . import repository as repo
 from .analysis import briefing as briefing_mod
+from .analysis import llm as llm_mod
 from .analysis import regime as regime_mod
 from .analysis import translate as translate_mod
 from .collectors.base import ALL_COLLECTORS
@@ -102,7 +103,7 @@ def _translate_news() -> None:
             repo.set_news_translation(r["link"], r["title"])  # 이미 한국어 → 캐시
     if not to_translate:
         return
-    logger.info("    - 뉴스 번역 중 (%d건, claude -p)...", len(to_translate))
+    logger.info("    - 뉴스 번역 중 (%d건, %s)...", len(to_translate), llm_mod.engine_label())
     kos = translate_mod.translate_titles([r["title"] for r in to_translate])
     n = 0
     for r, ko in zip(to_translate, kos):
@@ -311,8 +312,8 @@ def _do_run_inner(started: datetime, ts_utc: str, snapshot_id: int) -> dict:
                 repo.save_regime_score(snapshot_id, r["score"], r.get("tone", ""), r.get("short", ""))
             except Exception:  # noqa: BLE001 — 점수 기록 실패가 수집을 막지 않게
                 pass
-    logger.info("  [4/5] 데이터 저장 완료(%.1fs) - 브리핑 생성 중 (claude -p, 최대 %ds)...",
-                time.monotonic() - t_stage, settings.llm_timeout)
+    logger.info("  [4/5] 데이터 저장 완료(%.1fs) - 브리핑 생성 중 (%s, 최대 %ds)...",
+                time.monotonic() - t_stage, llm_mod.engine_label(), settings.llm_timeout)
     t_brief = time.monotonic()
     brief = briefing_mod.generate(quotes, news, events, now_kst,
                                   prior=prior_ctx, regime=regime_snap, now_utc=started)

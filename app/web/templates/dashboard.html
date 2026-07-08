@@ -187,7 +187,7 @@
       <div class="brief-body markdown" id="brief-body"></div>
     </details>
     <div class="brief-meta">
-      <span>🤖 {{ d.briefing.model or 'Claude Code' }}</span>
+      <span>🤖 {{ d.briefing.model or engine_default }}</span>
       <time class="kst" data-utc="{{ d.briefing.ts_utc }}">—</time>
       {% if d.briefing.error %}<span class="muted">· {{ d.briefing.error }}</span>{% endif %}
     </div>
@@ -325,7 +325,7 @@
         {% if it.mdd is not none %}<span class="rk">MDD {{ '%.0f'|format(it.mdd) }}%<em class="easy-gloss">최대낙폭(고점→저점)</em></span>{% endif %}
       </div>
       {% endif %}
-      <canvas class="spark" data-key="{{ it.key }}" data-tone="{{ it.tone }}" height="34"></canvas>
+      <canvas class="spark" data-key="{{ it.key }}" data-tone="{{ it.tone }}" height="50"></canvas>
     </div>
     {% endfor %}
   </div>

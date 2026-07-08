@@ -1,25 +1,22 @@
 """
-LLM 시황 브리핑 생성 — Claude Code CLI(`claude -p`) 헤드리스 호출.
+LLM 시황 브리핑 생성 — provider 추상화(`llm.complete`) 위에서 동작.
 
-별도 Anthropic API 키 없이, 사용자가 이미 로그인한 Claude Code 인증을 그대로 사용한다.
-프롬프트는 stdin 으로 전달(인용/길이 문제 회피), 출력은 --output-format json 으로 받아 파싱.
-CLI 가 없거나 실패해도 앱은 계속 동작(데이터 대시보드는 그대로, 브리핑만 비활성).
+provider 는 claude(구독 CLI 헤드리스) 또는 gemini(API 키 REST) 중 LLM_PROVIDER 로 선택된다.
+이 모듈은 프롬프트 빌드·응답 JSON 파싱·인용 점검·재시도만 담당하고, 실제 호출/전송은
+`app/analysis/llm.py` 가 처리한다. provider 가 없거나 실패해도 앱은 계속 동작(브리핑만 비활성).
 """
 from __future__ import annotations
 
 import json
-import os
 import re
-import shutil
-import subprocess
-import threading
 from datetime import datetime, timezone
 from typing import Optional
 
-from ..config import (INDICATOR_BY_KEY, CATEGORIES, settings, BASE_DIR,
+from ..config import (INDICATOR_BY_KEY, CATEGORIES, settings,
                       priority_of, source_tier)
 from ..logging_setup import logger
 from ..models import Briefing, CalendarEvent, NewsItem, Quote
+from . import llm
 from .stats import percentile_rank, zscore, _momentum_from, stat_window, risk_metrics
 from .calendar_util import surprise as cal_surprise
 
@@ -31,32 +28,6 @@ def _san(text: str, limit: int = 200) -> str:
     """외부 텍스트(뉴스/캘린더 제목)를 프롬프트에 넣기 전 정화: 개행·제어문자 제거 + 길이 제한.
     프롬프트 인젝션(개행으로 새 지시 위장)을 완화한다."""
     return _CTRL.sub(" ", (text or "")).strip()[:limit]
-
-
-# ─────────────────────────── CLI 해석 ───────────────────────────
-
-def resolve_claude() -> Optional[str]:
-    """claude 실행 파일 경로. 없으면 None."""
-    cand = settings.claude_bin or "claude"
-    found = shutil.which(cand)
-    if found:
-        return found
-    # 절대경로를 직접 줬는데 which 가 못 찾는 경우
-    if settings.claude_bin and os.path.exists(settings.claude_bin):
-        return settings.claude_bin
-    return None
-
-
-def _command(exe: str, model: Optional[str] = None) -> list[str]:
-    """claude -p 명령 구성. model 미지정 시 브리핑 모델(settings.claude_model) 사용."""
-    use_model = model if model is not None else settings.claude_model
-    args = ["-p", "--output-format", "json"]
-    if use_model:
-        args += ["--model", use_model]
-    # Windows 의 .cmd/.bat 셔임은 cmd /c 로 실행해야 함
-    if os.name == "nt" and exe.lower().endswith((".cmd", ".bat")):
-        return ["cmd", "/c", exe, *args]
-    return [exe, *args]
 
 
 # ─────────────────────────── 프롬프트 빌드 ───────────────────────────
@@ -318,106 +289,20 @@ def _extract_json_obj(text: str) -> Optional[dict]:
 
 # ─────────────────────────── 메인 진입점 ───────────────────────────
 
-def _pick_model(envelope: dict, fallback: str) -> str:
-    """엔벨로프에서 '주 작업' 모델명 선택.
+def _briefing_from_text(text: str, model: str) -> Briefing:
+    """LLM 본문 텍스트(엔벨로프 해제 완료)에서 JSON 브리핑을 추출 → Briefing.
 
-    Claude Code 는 보조작업에 haiku 를 함께 사용해 modelUsage 에 여러 모델이 섞인다.
-    우선순위: 명시 요청 모델(settings.claude_model) → top-level model → 비용 최대 모델.
+    JSON 추출 실패해도 원문을 본문으로 보존(ok=True → 재시도 안 함).
     """
-    mu = envelope.get("modelUsage") or {}
-    if settings.claude_model:
-        for k in mu:
-            if settings.claude_model == k or settings.claude_model in k:
-                return k
-        return settings.claude_model
-    if envelope.get("model"):
-        return envelope["model"]
-    if mu:
-        return max(
-            mu.items(),
-            key=lambda kv: (kv[1] or {}).get("costUSD", 0) if isinstance(kv[1], dict) else 0,
-        )[0]
-    return fallback
-
-
-def _kill_tree(proc: subprocess.Popen) -> None:
-    """타임아웃 시 프로세스 트리 전체 종료. Windows 의 cmd /c 셔임 자식 고아화 방지."""
     try:
-        if os.name == "nt":
-            subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                           capture_output=True, timeout=15)
-        else:
-            import signal
-            try:
-                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-            except Exception:  # noqa: BLE001
-                proc.kill()
-    except Exception:  # noqa: BLE001
-        try:
-            proc.kill()
-        except Exception:  # noqa: BLE001
-            pass
-
-
-def _run_cli(cmd: list[str], prompt: str, timeout: int, label: str = "브리핑") -> tuple[int, str, str]:
-    """claude CLI 호출 → (returncode, stdout, stderr). 타임아웃 시 자식 트리 종료.
-
-    수십~수백초 걸리는 LLM 호출 동안 30초마다 진행 하트비트를 로그해
-    '멈춘 것처럼' 보이지 않게 한다(실제로는 모델이 생성 중).
-    """
-    kw = dict(stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-              cwd=str(BASE_DIR), env={**os.environ, "PYTHONUTF8": "1"})
-    if os.name != "nt":
-        kw["start_new_session"] = True  # killpg 대상 프로세스 그룹 분리
-    proc = subprocess.Popen(cmd, **kw)
-    _stop = threading.Event()
-
-    def _heartbeat() -> None:
-        s = 0
-        while not _stop.wait(30):
-            s += 30
-            logger.info("    - %s 생성 중... (%ds 경과 / 최대 %ds)", label, s, timeout)
-
-    threading.Thread(target=_heartbeat, name="llm-heartbeat", daemon=True).start()
-    try:
-        out, err = proc.communicate(input=prompt.encode("utf-8"), timeout=timeout)
-    except subprocess.TimeoutExpired:
-        _kill_tree(proc)
-        try:
-            proc.communicate(timeout=10)
-        except Exception:  # noqa: BLE001
-            pass
-        raise
-    finally:
-        _stop.set()
-    return proc.returncode, out.decode("utf-8", "replace"), err.decode("utf-8", "replace")
-
-
-def _parse_response(raw: str) -> Briefing:
-    """claude -p 출력(엔벨로프)을 Briefing 으로 파싱. ok=False 면 재시도 가치 있음."""
-    result_text = raw
-    model_used = settings.claude_model or "Claude Code"
-    try:
-        envelope = json.loads(raw)
-        if isinstance(envelope, dict):
-            if envelope.get("is_error"):
-                return Briefing(ok=False, error=f"claude 응답 오류: {str(envelope.get('result'))[:300]}")
-            rt = envelope.get("result", raw)
-            result_text = rt if isinstance(rt, str) else json.dumps(rt, ensure_ascii=False)
-            model_used = _pick_model(envelope, model_used)
-    except json.JSONDecodeError:
-        pass  # text 모드 폴백
-
-    try:
-        obj = _extract_json_obj(result_text)
+        obj = _extract_json_obj(text)
     except Exception:  # noqa: BLE001
         obj = None
 
     if not obj:
-        # JSON 파싱 실패라도 원문을 본문으로 보존(ok=True → 재시도 안 함)
         return Briefing(
-            ok=True, model=model_used, headline="시황 브리핑",
-            summary=result_text[:200], body_md=result_text[:6000],
+            ok=True, model=model, headline="시황 브리핑",
+            summary=text[:200], body_md=text[:6000],
             sentiment="neutral", error="JSON 파싱 실패(원문 표시)",
         )
 
@@ -425,7 +310,7 @@ def _parse_response(raw: str) -> Briefing:
     if sentiment not in _VALID_SENTIMENT:
         sentiment = "neutral"
     return Briefing(
-        ok=True, model=model_used,
+        ok=True, model=model,
         headline=str(obj.get("headline", ""))[:120],
         summary=str(obj.get("summary", "")),
         body_md=str(obj.get("body_md", "")),
@@ -504,41 +389,27 @@ def generate(quotes: dict[str, Quote], news: list[NewsItem],
     if not settings.enable_llm:
         return Briefing(ok=False, error="LLM 브리핑 비활성(ENABLE_LLM_BRIEFING=false)")
 
-    exe = resolve_claude()
-    if not exe:
-        return Briefing(ok=False, error="claude CLI 를 찾을 수 없음 (CLAUDE_BIN 설정 또는 PATH 확인)")
+    err = llm.availability_error()
+    if err:
+        return Briefing(ok=False, error=err)
 
     prompt = build_prompt(quotes, news, events, now_kst, prior=prior,
                           regime=regime, now_utc=now_utc)
-    cmd = _command(exe)
 
-    # 최대 2회: 타임아웃/실행오류/빈응답/엔벨로프오류 시 1회 재시도(LLM 불안정 대비)
+    # 최대 2회: 타임아웃/실행오류/빈응답/응답오류 시 1회 재시도(LLM 불안정 대비)
     last_err = ""
     for attempt in (1, 2):
         if attempt == 2:
             logger.info("    - 브리핑 재시도 2/2 (직전 실패: %s)...", (last_err or "")[:60])
-        try:
-            rc, stdout, stderr = _run_cli(cmd, prompt, settings.llm_timeout)
-        except subprocess.TimeoutExpired:
-            last_err = f"타임아웃({settings.llm_timeout}s)"
+        res = llm.complete(prompt, timeout=settings.llm_timeout, label="브리핑")
+        if not res.ok:
+            last_err = res.error
             continue
-        except Exception as exc:  # noqa: BLE001
-            last_err = f"실행 실패: {type(exc).__name__}: {exc}"
-            continue
-        if rc != 0:
-            last_err = f"종료코드 {rc}: {(stderr or stdout or '')[-300:]}"
-            continue
-        raw = (stdout or "").strip()
-        if not raw:
-            last_err = "빈 응답"
-            continue
-        brief = _parse_response(raw)
-        if brief.ok:
-            issues = _citation_audit(brief.body_md or "", quotes)
-            if issues:
-                brief.body_md = (brief.body_md or "") + (
-                    "\n\n> ⚠ 자동 수치점검: " + "; ".join(issues[:3]) + " — 데이터 기준 재확인 필요")
-            return brief
-        last_err = brief.error or "파싱 실패"
+        brief = _briefing_from_text(res.text, res.model)
+        issues = _citation_audit(brief.body_md or "", quotes)
+        if issues:
+            brief.body_md = (brief.body_md or "") + (
+                "\n\n> ⚠ 자동 수치점검: " + "; ".join(issues[:3]) + " — 데이터 기준 재확인 필요")
+        return brief
 
-    return Briefing(ok=False, error=f"claude -p 실패(2회 시도): {last_err}")
+    return Briefing(ok=False, error=f"{llm.provider()} 브리핑 실패(2회 시도): {last_err}")

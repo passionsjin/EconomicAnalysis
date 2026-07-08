@@ -1,8 +1,8 @@
-"""뉴스 헤드라인 영문→한글 번역 — claude -p 배치 호출.
+"""뉴스 헤드라인 영문→한글 번역 — LLM 배치 호출(provider 추상화 공유).
 
 신규(미번역) 헤드라인만 한 번의 호출로 일괄 번역하고 캐시한다.
-별도 API 키 없이 기존 Claude Code 인증 사용(briefing 과 동일). 실패 시 원문 유지.
-번역은 쉬운 작업이라 기본 모델을 haiku(빠르고 저렴)로 둔다.
+provider 는 briefing 과 동일(LLM_PROVIDER). 실패 시 원문 유지.
+번역은 쉬운 작업이라 기본 모델을 가벼운 것(claude=haiku, gemini=flash-lite)으로 둔다.
 """
 from __future__ import annotations
 
@@ -10,7 +10,8 @@ import json
 import re
 
 from ..config import settings
-from .briefing import resolve_claude, _command, _run_cli, _extract_json_obj
+from . import llm
+from .briefing import _extract_json_obj
 
 _HANGUL = re.compile(r"[가-힣]")
 _CTRL = re.compile(r"[\r\n\t\x00-\x1f]")
@@ -43,32 +44,18 @@ def translate_titles(titles: list[str], timeout: int | None = None) -> list[str]
     out = list(titles)
     if not settings.enable_news_translation or not titles:
         return out
-    exe = resolve_claude()
-    if not exe:
+    if llm.availability_error():
         return out
 
     items = {str(i): _san(t) for i, t in enumerate(titles)}
     prompt = _PROMPT % json.dumps(items, ensure_ascii=False, indent=1)
-    model = settings.claude_translate_model or settings.claude_model or None
-    cmd = _command(exe, model)
 
-    try:
-        rc, stdout, stderr = _run_cli(cmd, prompt, timeout or settings.translate_timeout, label="뉴스 번역")
-    except Exception:  # noqa: BLE001 — 번역 실패가 수집을 막으면 안 됨
-        return out
-    if rc != 0 or not (stdout or "").strip():
+    res = llm.complete(prompt, model=llm.translate_model(),
+                       timeout=timeout or settings.translate_timeout, label="뉴스 번역")
+    if not res.ok or not res.text.strip():
         return out
 
-    text = stdout.strip()
-    try:  # --output-format json 엔벨로프 → result 추출
-        env = json.loads(text)
-        if isinstance(env, dict) and not env.get("is_error") and "result" in env:
-            r = env["result"]
-            text = r if isinstance(r, str) else json.dumps(r, ensure_ascii=False)
-    except json.JSONDecodeError:
-        pass
-
-    obj = _extract_json_obj(text)
+    obj = _extract_json_obj(res.text)
     if not isinstance(obj, dict):
         return out
     for i in range(len(titles)):

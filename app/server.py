@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from . import presenter
 from . import pipeline
 from . import repository as repo
+from .analysis import llm as llm_mod
 from .analysis import portfolio as portfolio_mod
 from .analysis import regime as regime_mod
 from .config import CATEGORIES, settings
@@ -48,6 +49,7 @@ def dashboard(request: Request):
         "sched": pipeline.scheduler_health(),
         "categories": CATEGORIES,
         "title": "거시경제 시황 대시보드",
+        "engine_default": llm_mod.model_fallback_label(),
     })
 
 
@@ -64,6 +66,7 @@ def report(request: Request, snapshot_id: int):
         "categories": CATEGORIES,
         "title": f"브리핑 #{snapshot_id}",
         "historical": True,
+        "engine_default": llm_mod.model_fallback_label(),
     })
 
 

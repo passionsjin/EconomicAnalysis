@@ -61,11 +61,18 @@ class Settings:
     collect_on_start: bool = _b("COLLECT_ON_START", True)
 
     enable_llm: bool = _b("ENABLE_LLM_BRIEFING", True)
+    # LLM provider: claude(구독 CLI 헤드리스, 키 불필요) | gemini(GEMINI_API_KEY REST). 기본 claude.
+    llm_provider: str = os.getenv("LLM_PROVIDER", "claude").strip().lower()
     claude_bin: str = os.getenv("CLAUDE_BIN", "").strip()
     claude_model: str = os.getenv("CLAUDE_MODEL", "").strip()
     llm_timeout: int = _i("LLM_TIMEOUT", 300)   # 큰 프롬프트 브리핑이 ~130-170s 걸려 180은 빡빡
 
-    # 뉴스 영문→한글 번역(claude -p, 신규 항목만 캐시). 실패 시 원문 표시.
+    # Gemini(provider=gemini 일 때). 무료 AI Studio 키(?key=) 방식.
+    gemini_api_key: str = os.getenv("GEMINI_API_KEY", "").strip()
+    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+    gemini_translate_model: str = os.getenv("GEMINI_TRANSLATE_MODEL", "gemini-2.5-flash-lite").strip()
+
+    # 뉴스 영문→한글 번역(신규 항목만 캐시). 실패 시 원문 표시.
     enable_news_translation: bool = _b("ENABLE_NEWS_TRANSLATION", True)
     claude_translate_model: str = os.getenv("CLAUDE_TRANSLATE_MODEL", "haiku").strip()
     translate_timeout: int = _i("TRANSLATE_TIMEOUT", 60)

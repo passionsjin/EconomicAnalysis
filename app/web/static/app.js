@@ -94,8 +94,9 @@ async function drawSpark(canvas) {
       }],
     },
     options: {
-      // 종횡비 고정 → 부모 카드 높이에 의존하지 않아 렌더가 안정적(늘어남/잘림 방지)
-      responsive: true, maintainAspectRatio: true, aspectRatio: 7, animation: false,
+      // 종횡비 고정 → 부모 카드 높이에 의존하지 않아 렌더가 안정적(늘어남/잘림 방지).
+      // 7:1 은 카드 폭(~190px)에서 높이가 ~28px로 너무 납작해 변동폭이 눌려 보였음 → 3.4:1 로 키움.
+      responsive: true, maintainAspectRatio: true, aspectRatio: 3.4, animation: false,
       plugins: { legend: { display: false }, tooltip: { enabled: false } },
       scales: { x: { display: false }, y: { display: false, grace: "8%" } },
       elements: { line: { borderJoinStyle: "round" } },

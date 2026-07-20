@@ -550,3 +550,336 @@ body{
   .sig-dot::after{animation:none}
   .ind,.card,.btn{transition:none}
 }
+
+/* ════════════════════════════════════════════════════════════════
+   현대자동차 전용 페이지 (.hmc-*)
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── 주가 헤더 ── */
+.hmc-header{margin-bottom:0}
+.hmc-header-main{display:flex;gap:24px;align-items:flex-start}
+.hmc-price-block{flex:0 0 auto;min-width:260px}
+.hmc-price-chart-wrap{flex:1;height:200px;min-height:160px}
+.hmc-company{font-size:13px;color:var(--muted);margin-bottom:4px}
+.hmc-price{font-size:36px;font-weight:700;font-family:'IBM Plex Mono',ui-monospace,monospace;
+  letter-spacing:-1px;line-height:1.1;margin:4px 0}
+.hmc-price.good{color:var(--good)}.hmc-price.bad{color:var(--bad)}.hmc-price.neutral{color:#e6ebf3}
+.hmc-change{font-size:15px;font-weight:600;display:flex;gap:8px;align-items:baseline}
+.hmc-change.good{color:var(--good)}.hmc-change.bad{color:var(--bad)}
+.hmc-chg-pct{font-size:13px;opacity:.8}
+.hmc-stats-row{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px}
+.hmc-stat{font-size:12px;color:var(--muted)}
+.hmc-stat i{color:var(--muted2);font-style:normal;margin-right:3px}
+.hmc-52w{display:flex;align-items:center;gap:7px;margin-top:10px;font-size:12px;flex-wrap:wrap}
+.hmc-dist{font-size:11px;padding:2px 8px;border-radius:20px;
+  background:var(--card2);border:1px solid var(--line)}
+.hmc-dist.good{color:var(--good);border-color:rgba(22,199,132,.3)}
+.hmc-dist.warn{color:var(--warn);border-color:rgba(240,160,32,.3)}
+.hmc-dist.muted{color:var(--muted)}
+
+/* ── 종합 빠른 판단 ── */
+.hmc-quickview{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0}
+.hmc-qv-item{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:14px 16px;display:flex;flex-direction:column;gap:5px;border-left:3px solid var(--line)}
+.hmc-qv-item.good{border-left-color:var(--good)}
+.hmc-qv-item.bad{border-left-color:var(--bad)}
+.hmc-qv-item.warn{border-left-color:var(--warn)}
+.hmc-qv-item.neutral{border-left-color:var(--neutral)}
+.hmc-qv-lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.hmc-qv-val{font-size:13px;color:#d0d8e8;font-weight:500;line-height:1.4}
+
+/* ── LLM 분석 ── */
+.hmc-analysis{border-left:3px solid var(--accent)}
+.hmc-analysis-headline{font-size:18px;font-weight:700;color:#e6ebf3;
+  margin:10px 0 6px;line-height:1.3}
+.hmc-analysis-summary{font-size:13.5px;color:#b8c2d4;line-height:1.75;margin-bottom:10px}
+.hmc-analysis-more>summary{list-style:none;cursor:pointer;color:var(--accent);
+  font-size:12.5px;padding:6px 0;user-select:none;display:inline-block}
+.hmc-analysis-more>summary::-webkit-details-marker,
+.hmc-analysis-more>summary::marker{display:none;content:""}
+.hmc-analysis-more>summary:hover{text-decoration:underline}
+.hmc-analysis-more[open]>summary{color:var(--muted);margin-bottom:8px}
+
+/* ── 섹션 헤더 ── */
+.hmc-sec-head{font-size:14px;font-weight:600;color:#c8d0de;
+  margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.hmc-sec-sub{font-size:12px;color:var(--muted);margin:14px 0 8px}
+
+/* ── 밸류에이션 그리드 ── */
+.hmc-val-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  gap:12px;margin-bottom:10px}
+.hmc-val-card{background:var(--card2);border:1px solid var(--line);
+  border-radius:12px;padding:14px 16px;transition:border-color .15s}
+.hmc-val-card:hover{border-color:var(--accent)}
+.hmc-val-card.good{border-top:2px solid var(--good)}
+.hmc-val-card.warn{border-top:2px solid var(--warn)}
+.hmc-val-card.bad{border-top:2px solid var(--bad)}
+.hmc-val-name{font-size:11px;color:var(--muted);margin-bottom:5px}
+.hmc-val-name small{font-size:10px;color:var(--muted2)}
+.hmc-val-num{font-size:22px;font-weight:700;
+  font-family:'IBM Plex Mono',ui-monospace,monospace;color:#e6ebf3;margin-bottom:4px}
+.hmc-val-num.good{color:var(--good)}.hmc-val-num.bad{color:var(--bad)}.hmc-val-num.warn{color:var(--warn)}
+.hmc-val-sub{font-size:11px;color:var(--muted);line-height:1.4}
+.hmc-val-hint{font-size:11px;color:var(--muted2);margin-top:3px}
+
+/* ── 섹터 PER 비교 ── */
+.hmc-sector-compare{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.hmc-peer-bars{display:flex;flex-direction:column;gap:7px}
+.hmc-peer-row{display:flex;align-items:center;gap:10px}
+.hmc-peer-name{font-size:12px;color:var(--muted);width:130px;flex:0 0 130px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hmc-peer-name.hmc-peer-self{color:#e6ebf3;font-weight:600}
+.hmc-peer-bar-wrap{flex:1;background:var(--card2);border-radius:4px;height:8px;overflow:hidden}
+.hmc-peer-bar{height:100%;border-radius:4px;transition:width .4s ease}
+.hmc-peer-val{font-size:12px;color:var(--muted);width:38px;text-align:right;
+  font-family:'IBM Plex Mono',ui-monospace,monospace}
+.hmc-peer-val.hmc-peer-self{color:#e6ebf3;font-weight:600}
+
+/* ── 탭 그룹 ── */
+.hmc-tab-group{display:inline-flex;gap:2px;margin-left:auto;
+  background:var(--card2);border-radius:8px;padding:3px}
+.hmc-tab{font-size:12px;padding:4px 10px;border:none;border-radius:6px;
+  background:transparent;color:var(--muted);cursor:pointer;transition:.15s}
+.hmc-tab.active{background:var(--accent);color:#fff}
+.hmc-tab:hover:not(.active){background:var(--line);color:#c8d0de}
+
+/* ── 실적 차트 ── */
+.hmc-growth-badge{display:inline-block;font-size:12px;font-weight:600;
+  padding:4px 10px;border-radius:20px;margin-bottom:10px}
+.hmc-growth-badge.good{color:var(--good);background:rgba(22,199,132,.1);
+  border:1px solid rgba(22,199,132,.3)}
+.hmc-growth-badge.bad{color:var(--bad);background:rgba(234,57,67,.1);
+  border:1px solid rgba(234,57,67,.3)}
+.hmc-chart-wrap{height:240px;margin:10px 0}
+.hmc-chart-legend{display:flex;gap:14px;justify-content:center;margin-top:6px}
+.hmc-chart-legend span{display:flex;align-items:center;gap:6px;
+  font-size:11.5px;color:var(--muted)}
+.hmc-chart-legend i{display:inline-block;width:12px;height:12px;border-radius:3px;flex:none}
+
+/* ── 재무 그리드 ── */
+.hmc-fin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+.hmc-fin-group-title{font-size:11px;font-weight:600;color:var(--muted2);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;
+  padding-bottom:5px;border-bottom:1px solid var(--line)}
+.hmc-fin-row{display:flex;justify-content:space-between;align-items:baseline;
+  padding:5px 0;border-bottom:1px solid var(--card2);font-size:12.5px;color:var(--muted)}
+.hmc-fin-row:last-child{border-bottom:none}
+.hmc-fin-val{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12.5px;
+  color:#c8d0de;text-align:right;white-space:nowrap}
+.hmc-fin-val.good{color:var(--good)}.hmc-fin-val.bad{color:var(--bad)}.hmc-fin-val.warn{color:var(--warn)}
+
+/* ── 전략 플랜 ── */
+.hmc-plans{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.hmc-plan-group{background:var(--card2);border:1px solid var(--line);
+  border-radius:12px;padding:16px}
+/* ── 플랜 요약 바 ── */
+.hmc-plan-summary-bar{display:flex;align-items:center;gap:24px;flex-wrap:wrap;
+  padding:14px 16px;background:rgba(255,255,255,.03);border-radius:10px;
+  border:1px solid var(--line);margin-bottom:20px}
+.hmc-ps-score-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:80px}
+.hmc-ps-score{font-size:28px;font-weight:700;line-height:1}
+.hmc-ps-score.good{color:var(--good)}.hmc-ps-score.warn{color:var(--warn)}.hmc-ps-score.bad{color:var(--bad)}
+.hmc-ps-score-label{font-size:11px;color:var(--muted)}
+.hmc-ps-score-track{width:72px;height:4px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden}
+.hmc-ps-score-fill{height:100%;border-radius:4px}
+.hmc-ps-score-fill.good{background:var(--good)}.hmc-ps-score-fill.warn{background:var(--warn)}
+.hmc-ps-counts{display:flex;gap:16px;flex:1}
+.hmc-ps-stat{display:flex;flex-direction:column;align-items:center;gap:2px}
+.hmc-ps-num{font-size:20px;font-weight:700}
+.hmc-ps-num.good{color:var(--good)}.hmc-ps-num.warn{color:var(--warn)}
+.hmc-ps-num.neutral{color:var(--muted)}.hmc-ps-num.bad{color:var(--bad)}
+.hmc-ps-num.muted{color:var(--muted)}
+.hmc-ps-lbl{font-size:10.5px;color:var(--muted)}
+.hmc-ps-track-legend{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);flex-wrap:wrap}
+.hmc-track-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:6px}
+.hmc-track-dot.good{background:var(--good)}.hmc-track-dot.warn{background:var(--warn)}.hmc-track-dot.neutral{background:var(--muted)}
+/* ── KPI 블록 ── */
+.hmc-plan-kpi{margin-top:7px;padding:8px 10px;background:rgba(255,255,255,.04);
+  border-radius:6px;border-left:2px solid rgba(100,120,160,.3)}
+.hmc-kpi-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11.5px}
+.hmc-kpi-label{font-size:10px;color:var(--muted);background:rgba(255,255,255,.06);
+  padding:1px 5px;border-radius:4px;flex:none}
+.hmc-kpi-actual{color:#c8d4e8;font-weight:500}
+.hmc-kpi-sep{color:var(--muted);font-size:10px}
+.hmc-kpi-target{color:#b0bbd0}
+.hmc-kpi-track{font-size:10px;padding:2px 7px;border-radius:10px;margin-left:auto;flex:none}
+.hmc-kpi-track.good{background:rgba(22,199,132,.15);color:var(--good);border:1px solid rgba(22,199,132,.3)}
+.hmc-kpi-track.warn{background:rgba(240,160,32,.12);color:var(--warn);border:1px solid rgba(240,160,32,.3)}
+.hmc-kpi-track.neutral{background:var(--neutral-bg);color:var(--muted);border:1px solid var(--line)}
+.hmc-kpi-note{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.4}
+
+.hmc-plan-title{font-size:14px;font-weight:600;color:#c8d0de;margin-bottom:12px}
+.hmc-plan-items{display:flex;flex-direction:column;gap:10px}
+.hmc-plan-item{font-size:12.5px;padding:10px 12px;border-radius:8px;
+  border-left:3px solid var(--line);background:rgba(255,255,255,.02);
+  transition:background .15s}
+.hmc-plan-item.good{border-left-color:rgba(22,199,132,.4);background:rgba(22,199,132,.03)}
+.hmc-plan-item.warn{border-left-color:rgba(240,160,32,.35);background:rgba(240,160,32,.03)}
+.hmc-plan-item.neutral{border-left-color:var(--line)}
+.hmc-plan-item.bad{border-left-color:rgba(234,57,67,.4);background:rgba(234,57,67,.03)}
+.hmc-plan-item-top{display:flex;align-items:flex-start;gap:7px;
+  margin-bottom:4px;flex-wrap:wrap}
+.hmc-status-badge{display:inline-block;font-size:11px;padding:2px 7px;
+  border-radius:12px;white-space:nowrap;flex:none}
+.hmc-status-badge.good{background:rgba(22,199,132,.15);color:var(--good);
+  border:1px solid rgba(22,199,132,.25)}
+.hmc-status-badge.warn{background:rgba(240,160,32,.12);color:var(--warn);
+  border:1px solid rgba(240,160,32,.25)}
+.hmc-status-badge.neutral{background:var(--neutral-bg);color:var(--muted);
+  border:1px solid var(--line)}
+.hmc-status-badge.bad{background:rgba(234,57,67,.12);color:var(--bad);
+  border:1px solid rgba(234,57,67,.25)}
+.hmc-plan-label{color:#b8c2d4;line-height:1.4;flex:1;font-weight:500}
+.hmc-plan-date{font-size:10.5px;color:var(--accent);background:rgba(100,160,255,.1);
+  border:1px solid rgba(100,160,255,.2);border-radius:10px;padding:1px 7px;
+  white-space:nowrap;flex:none;margin-left:auto}
+.hmc-plan-detail{font-size:11.5px;color:var(--muted);line-height:1.5;
+  padding-left:2px;margin-top:2px}
+.hmc-plan-milestone{font-size:11px;color:var(--accent);margin-top:5px;
+  padding-left:2px;display:flex;align-items:center;gap:5px}
+.hmc-milestone-icon{font-size:9px;opacity:.7}
+.hmc-plan-progress-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+.hmc-plan-progress-track{flex:1;height:4px;background:rgba(255,255,255,.08);
+  border-radius:4px;overflow:hidden}
+.hmc-plan-progress-bar{height:100%;border-radius:4px;transition:width .6s ease}
+.hmc-plan-progress-bar.good{background:linear-gradient(90deg,rgba(22,199,132,.5),rgba(22,199,132,.85))}
+.hmc-plan-progress-bar.warn{background:linear-gradient(90deg,rgba(240,160,32,.5),rgba(240,160,32,.85))}
+.hmc-plan-progress-bar.neutral{background:rgba(150,160,180,.4)}
+.hmc-plan-progress-label{font-size:10px;color:var(--muted);min-width:28px;text-align:right}
+.hmc-plan-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;
+  padding-top:12px;border-top:1px solid var(--line);
+  font-size:11.5px;color:var(--muted);align-items:center}
+
+/* ── 가치 배너 + 적정주가 테이블 ── */
+.hmc-value-banner{display:flex;align-items:flex-start;gap:12px;
+  padding:12px 16px;border-radius:8px;margin-top:16px;
+  font-size:13px;line-height:1.5}
+.hmc-value-banner.good{background:rgba(22,199,132,.08);border:1px solid rgba(22,199,132,.25)}
+.hmc-value-banner.warn{background:rgba(240,160,32,.08);border:1px solid rgba(240,160,32,.25)}
+.hmc-banner-icon{font-size:18px;flex:none;line-height:1.4}
+.hmc-implied-wrap{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.hmc-implied-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
+.hmc-implied-table thead th{color:var(--muted);font-weight:500;
+  padding:5px 8px;border-bottom:1px solid var(--line);text-align:left}
+.hmc-implied-table thead th.num,.hmc-implied-table td.num{text-align:right}
+.hmc-implied-table tbody td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.04)}
+.hmc-implied-table tbody tr:hover td{background:rgba(255,255,255,.03)}
+.hmc-implied-table .good{color:var(--good)}
+.hmc-implied-table .bad{color:var(--bad)}
+.hmc-implied-table .neutral{color:var(--muted)}
+.hmc-implied-current td{background:rgba(59,130,246,.07);font-weight:600}
+.hmc-implied-current td:first-child::before{content:"▶ ";font-size:10px;color:var(--accent)}
+.hmc-implied-note{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5;
+  padding:8px 10px;background:rgba(255,255,255,.03);border-radius:6px;border-left:2px solid var(--line)}
+
+/* ── 헤더 변동 라벨 ── */
+.hmc-chg-label{font-size:10px;color:var(--muted);background:rgba(255,255,255,.07);
+  padding:1px 5px;border-radius:4px;font-weight:400}
+.hmc-chg-divider{color:var(--line);margin:0 4px;font-size:13px}
+
+/* ── 로봇 섹션 ── */
+.hmc-robot-decomp{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:16px;background:rgba(255,255,255,.03);border-radius:10px;
+  border:1px solid var(--line);margin-bottom:12px}
+.hmc-rd-item{display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:10px 16px;border-radius:8px;min-width:120px;text-align:center;flex:1}
+.hmc-rd-item.auto{background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2)}
+.hmc-rd-item.option{background:rgba(22,199,132,.07);border:1px solid rgba(22,199,132,.2)}
+.hmc-rd-val{font-size:18px;font-weight:700;color:#e6ebf3}
+.hmc-rd-label{font-size:11px;color:var(--muted);line-height:1.4;text-align:center}
+.hmc-rd-eq{font-size:20px;color:var(--muted);font-weight:300;flex:none}
+.hmc-robot-note{font-size:11.5px;color:var(--muted);line-height:1.5;
+  padding:8px 12px;background:rgba(255,255,255,.03);border-radius:6px;
+  border-left:2px solid rgba(100,160,255,.3);margin-bottom:14px}
+.hmc-bd-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.hmc-bd-card{padding:12px 14px;background:rgba(255,255,255,.03);
+  border-radius:8px;border:1px solid var(--line)}
+.hmc-bd-title{font-size:10.5px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.hmc-bd-val{font-size:15px;font-weight:600;color:#c8d4e8}
+.hmc-bd-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.hmc-robot-peers{padding-top:4px}
+.hmc-rp-row{display:flex;align-items:center;gap:10px;padding:5px 0;
+  border-bottom:1px solid rgba(255,255,255,.04)}
+.hmc-rp-row:last-child{border-bottom:none}
+.hmc-rp-hmc .hmc-rp-name{color:#7eb8f7;font-weight:600}
+.hmc-rp-hmc .hmc-rp-bar{opacity:.9}
+.hmc-rp-name{font-size:12px;color:var(--muted);min-width:140px;flex:none}
+.hmc-rp-bar-wrap{flex:1;height:8px;display:flex;align-items:center}
+.hmc-rp-bar{height:8px;border-radius:4px;min-width:2px;transition:width .4s}
+.hmc-rp-bar.pos{background:linear-gradient(90deg,rgba(22,199,132,.4),rgba(22,199,132,.75))}
+.hmc-rp-bar.neg{background:linear-gradient(90deg,rgba(234,57,67,.4),rgba(234,57,67,.7))}
+.hmc-rp-val{font-size:12.5px;font-weight:600;min-width:60px;text-align:right;flex:none}
+@media(max-width:600px){
+  .hmc-robot-decomp{flex-direction:column}
+  .hmc-rd-eq{transform:rotate(90deg)}
+  .hmc-bd-grid{grid-template-columns:1fr}
+}
+
+/* ── 로봇 이행 현황 ── */
+.hmc-robot-exec{margin-top:20px}
+.hmc-rexec-score{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;
+  border-radius:12px;margin-left:10px;vertical-align:middle}
+.hmc-rexec-score.good{background:rgba(22,199,132,.15);color:var(--good)}
+.hmc-rexec-score.warn{background:rgba(240,160,32,.12);color:var(--warn)}
+.hmc-rexec-score.bad{background:rgba(234,57,67,.12);color:var(--bad)}
+.hmc-rexec-score.neutral{background:var(--neutral-bg);color:var(--muted)}
+.hmc-rexec-cat{margin-bottom:18px}
+.hmc-rexec-cat-title{font-size:13.5px;font-weight:700;color:#c9d1e0;
+  padding:6px 0 8px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.hmc-rexec-item{background:var(--card2);border-radius:8px;padding:12px 14px;
+  margin-bottom:8px;border-left:3px solid var(--line)}
+.hmc-rexec-item:has(.hmc-status-badge.good){border-left-color:var(--good)}
+.hmc-rexec-item:has(.hmc-status-badge.warn){border-left-color:var(--warn)}
+.hmc-rexec-item:has(.hmc-status-badge.bad){border-left-color:var(--bad)}
+.hmc-rexec-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.hmc-rexec-label{font-size:13.5px;font-weight:600;color:#e6ebf3;flex:1;min-width:0}
+
+/* ── 애널리스트 ── */
+.hmc-analyst-wrap{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap}
+.hmc-analyst-main{flex:0 0 auto}
+.hmc-analyst-rec{font-size:20px;font-weight:700;color:#e6ebf3}
+.hmc-analyst-rec.good{color:var(--good)}.hmc-analyst-rec.bad{color:var(--bad)}
+.hmc-analyst-rec.warn{color:var(--warn)}.hmc-analyst-rec.neutral{color:#e6ebf3}
+.hmc-analyst-target{font-size:13px;color:var(--muted);margin-top:6px}
+.hmc-analyst-target b{color:#e6ebf3;font-size:15px}
+.hmc-analyst-upside{font-weight:600;margin-left:6px}
+.hmc-analyst-upside.good{color:var(--good)}.hmc-analyst-upside.bad{color:var(--bad)}
+.hmc-analyst-upside.warn{color:var(--warn)}.hmc-analyst-upside.neutral{color:var(--muted)}
+.hmc-target-range{flex:1;min-width:200px}
+.hmc-tbar{position:relative;background:var(--card2);border:1px solid var(--line);
+  border-radius:6px;height:12px;margin:22px 0 8px}
+.hmc-tbar-fill{position:absolute;top:0;left:0;height:100%;
+  background:linear-gradient(90deg,rgba(59,130,246,.3),rgba(59,130,246,.1));border-radius:6px}
+.hmc-tbar-cur,.hmc-tbar-tgt{position:absolute;top:-2px;transform:translateX(-50%)}
+.hmc-tbar-cur::before{content:'';display:block;width:3px;height:16px;
+  background:#5e6678;border-radius:2px}
+.hmc-tbar-tgt::before{content:'';display:block;width:3px;height:16px;
+  background:var(--accent);border-radius:2px}
+.hmc-tbar-cur>span,.hmc-tbar-tgt>span{position:absolute;bottom:20px;left:50%;
+  transform:translateX(-50%);font-size:10px;white-space:nowrap;color:var(--muted)}
+.hmc-tbar-tgt>span{color:var(--accent)}
+.hmc-tbar-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--muted2)}
+
+/* ── 분석 생성 중 프로그레스 ── */
+.hmc-analysis-progress{height:4px;background:var(--card2);border-radius:2px;
+  overflow:hidden;margin:12px 0 6px}
+.hmc-analysis-bar{height:100%;width:30%;background:linear-gradient(90deg,var(--warn),var(--accent));
+  border-radius:2px;animation:hmc-progress 2.5s ease-in-out infinite alternate}
+@keyframes hmc-progress{0%{width:15%;margin-left:0}100%{width:40%;margin-left:55%}}
+
+/* ── 반응형 ── */
+@media(max-width:900px){
+  .hmc-header-main{flex-direction:column}
+  .hmc-price-chart-wrap{width:100%;min-height:160px}
+  .hmc-quickview{grid-template-columns:repeat(2,1fr)}
+  .hmc-plans{grid-template-columns:1fr}
+  .hmc-val-grid{grid-template-columns:repeat(3,1fr)}
+  .hmc-peer-name{width:100px;flex:0 0 100px}
+}
+@media(max-width:600px){
+  .hmc-price{font-size:28px}
+  .hmc-quickview{grid-template-columns:1fr}
+  .hmc-val-grid{grid-template-columns:repeat(2,1fr)}
+  .hmc-fin-grid{grid-template-columns:1fr}
+  .hmc-analyst-wrap{flex-direction:column}
+}

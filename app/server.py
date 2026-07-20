@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from . import presenter
 from . import pipeline
 from . import repository as repo
+from .analysis import hyundai as hyundai_mod
 from .analysis import llm as llm_mod
 from .analysis import portfolio as portfolio_mod
 from .analysis import regime as regime_mod
@@ -35,6 +36,16 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="거시경제 분석 대시보드", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(settings.web_dir / "static")), name="static")
 templates = Jinja2Templates(directory=str(settings.web_dir / "templates"))
+
+
+def _jinja_format_number(v) -> str:
+    try:
+        return f"{int(v):,}"
+    except (TypeError, ValueError):
+        return "—"
+
+
+templates.env.filters["format_number"] = _jinja_format_number
 
 
 # ─────────────────────────── HTML ───────────────────────────
@@ -67,6 +78,32 @@ def report(request: Request, snapshot_id: int):
         "title": f"브리핑 #{snapshot_id}",
         "historical": True,
         "engine_default": llm_mod.model_fallback_label(),
+    })
+
+
+@app.get("/hyundai", response_class=HTMLResponse)
+def hyundai_page(request: Request):
+    data = hyundai_mod.get_data()
+    analysis = hyundai_mod.get_cached_analysis()  # 캐시만 — LLM 차단 없음
+    if not analysis:
+        hyundai_mod.trigger_analysis_async(data)   # 백그라운드 생성 시작
+    return templates.TemplateResponse("hyundai.html", {
+        "request": request,
+        "d": data,
+        "analysis": analysis,
+        "analysis_generating": analysis is None,
+        "title": "현대자동차 전용 분석",
+    })
+
+
+@app.get("/api/hyundai/analysis")
+def api_hyundai_analysis():
+    """분석 완료 여부 폴링 — 프론트엔드 자동새로고침용."""
+    cached = hyundai_mod.get_cached_analysis()
+    return JSONResponse({
+        "ready": cached is not None,
+        "generating": hyundai_mod._analysis_generating.is_set(),
+        "data": cached,
     })
 
 
@@ -134,6 +171,11 @@ def api_status():
         "latest_snapshot_id": snap["id"] if snap else None,
         "latest_finished": snap["finished_utc"] if snap else None,
     }
+
+
+@app.get("/api/hyundai")
+def api_hyundai():
+    return JSONResponse(hyundai_mod.get_data())
 
 
 @app.post("/api/collect")

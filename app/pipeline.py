@@ -15,6 +15,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from . import repository as repo
 from .analysis import briefing as briefing_mod
+from .analysis import hyundai as hyundai_mod
 from .analysis import llm as llm_mod
 from .analysis import regime as regime_mod
 from .analysis import translate as translate_mod
@@ -323,6 +324,12 @@ def _do_run_inner(started: datetime, ts_utc: str, snapshot_id: int) -> dict:
     else:
         logger.warning("  [5/5] 브리핑 실패 - %s (%.1fs)", brief.error, time.monotonic() - t_brief)
     repo.save_briefing(snapshot_id, datetime.now(timezone.utc).isoformat(), brief)
+
+    # 현대차 실시간 데이터 갱신 (실패해도 수집을 막지 않게)
+    try:
+        hyundai_mod.refresh()
+    except Exception:  # noqa: BLE001
+        logger.warning("현대차 데이터 갱신 실패(무시)")
 
     # 4) 정리
     try:

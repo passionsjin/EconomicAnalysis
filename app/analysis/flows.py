@@ -26,6 +26,7 @@ _ASSETS: list[tuple[str, str, str, str, str]] = [
     ("sp500",  "S&P500",   "equity", "", ""),
     ("nasdaq", "나스닥",     "equity", "", ""),
     ("kospi",  "코스피",     "equity", "usdkrw", "/"),
+    ("tlt",    "미 장기국채",  "bond",   "", ""),
     ("hyg",    "하이일드채",  "bond",   "", ""),
     ("gold",   "금",        "real",   "", ""),
     ("copper", "구리",       "real",   "", ""),

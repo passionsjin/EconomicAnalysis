@@ -17,8 +17,9 @@ from app.analysis import flows                     # noqa: E402
 
 TOL = 0.02          # 부동소수 오차 허용치
 
-# 기준일 2026-08-05. tlt 수집 전 9종 기준.
-GOLDEN_ASSET = {
+# 스펙 문서에서 나온 독립 오라클 — tlt 를 뺀 9종. 구현 출력으로 덮어쓰지 말 것.
+# 이 값이 깨지면 _rrg 의 계산이 바뀐 것이다.
+GOLDEN_ASSET_9 = {
     "copper": (101.93, 100.62),
     "sp500":  (101.48, 99.48),
     "nasdaq": (101.43, 100.49),
@@ -29,6 +30,20 @@ GOLDEN_ASSET = {
     "usdkrw": (99.23, 97.38),
     "wti":    (99.01, 99.33),
 }
+# 회귀 잠금 — tlt 포함 10종. Task 2 구현 시점 출력을 고정한 값이라
+# 독립 검증력은 없다(계산 검증은 GOLDEN_ASSET_9 담당). 좌표가 흔들리면 여기서 잡힌다.
+GOLDEN_ASSET = {
+    "copper": (101.97, 100.72),
+    "sp500":  (101.53, 99.57),
+    "nasdaq": (101.47, 100.62),
+    "gold":   (100.53, 103.04),
+    "hyg":    (100.42, 98.88),
+    "tlt":    (99.80, 98.62),
+    "btc":    (99.49, 100.19),
+    "kospi":  (99.44, 99.56),
+    "usdkrw": (99.21, 97.38),
+    "wti":    (99.02, 99.35),
+}
 GOLDEN_REGION = {
     "sp500":    (101.30, 100.19),
     "eustoxx":  (101.05, 100.61),
@@ -37,7 +52,7 @@ GOLDEN_REGION = {
     "kospi":    (99.16, 99.34),
     "shanghai": (98.69, 98.64),
 }
-GOLDEN_DAYS = {"자산군": 744, "지역": 915}
+GOLDEN_DAYS = {"자산군9": 744, "자산군": 744, "지역": 915}
 
 failures: list[str] = []
 
@@ -69,6 +84,10 @@ def check(name: str, m: dict | None, golden: dict, days: int) -> None:
             failures.append(f"[{name}] {r['key']} 사분면 값 이상: {r['quadrant']}")
 
 
+# tlt 를 뺀 9종으로 계산해 스펙 기준 좌표와 대조 — 계산 로직의 독립 검증
+_spec9 = [s for s in flows._ASSETS if s[0] != "tlt"]
+check("자산군9(오라클)", flows._rrg(_spec9), GOLDEN_ASSET_9, GOLDEN_DAYS["자산군9"])
+print()
 check("자산군", flows.asset_map(), GOLDEN_ASSET, GOLDEN_DAYS["자산군"])
 print()
 check("지역", flows.region_map(), GOLDEN_REGION, GOLDEN_DAYS["지역"])

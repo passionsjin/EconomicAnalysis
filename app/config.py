@@ -90,14 +90,20 @@ class Settings:
     web_dir: Path = BASE_DIR / "app" / "web"
 
     # 경제 뉴스 RSS (키 없음). 도달 불가하면 자동 스킵.
+    # 주의: 죽은 피드는 404 가 아니라 '옛 기사에 동결된 200' 으로 나타난다(2026-07 WSJ
+    # feeds.a.dj.com 이 2025-01 기사를 계속 반환). news_max_age_hours 신선도 필터가
+    # 그 방어선이고, 수집 로그의 '동결' 경고로 감지한다.
     news_feeds: tuple = (
-        ("WSJ Markets", "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"),
-        ("WSJ Economy", "https://feeds.a.dj.com/rss/WSJcomUSBusiness.xml"),
+        ("WSJ Markets", "https://feeds.content.dowjones.io/public/rss/RSSMarketsMain"),
+        ("WSJ Economy", "https://feeds.content.dowjones.io/public/rss/WSJcomUSBusiness"),
         ("Investing.com 경제", "https://www.investing.com/rss/news_25.rss"),
         ("Investing.com 시장", "https://www.investing.com/rss/news_301.rss"),
-        ("CNBC Economy", "https://search.cnbc.com/rss/2.0/106003/?partnerId=wrss01-18"),
+        ("CNBC Top", "https://www.cnbc.com/id/100003114/device/rss/rss.html"),
         ("MarketWatch Top", "https://feeds.content.dowjones.io/public/rss/mw_topstories"),
+        ("연합 경제", "https://www.yna.co.kr/rss/economy.xml"),
     )
+    # 이보다 오래된 기사는 수집 단계에서 제외(동결 피드 방어). published 없는 항목은 통과.
+    news_max_age_hours: int = _i("NEWS_MAX_AGE_HOURS", 48)
 
 
 settings = Settings()
@@ -120,6 +126,10 @@ CATEGORIES: dict[str, str] = {
     "kr_macro": "한국 거시지표",
     "valuation": "밸류에이션",
 }
+
+# 변화 기준 라벨 — 직전 관측이 하루/한 주/한 달 전인지. freq 를 아는 계층 전부가 공유
+# (presenter 화면 표기 + briefing 프롬프트). 월별 지표의 변화를 '오늘 변화'로 오해시키지 않기 위함.
+BASIS_LABEL: dict[str, str] = {"D": "전일", "W": "전주", "M": "전월"}
 
 
 @dataclass(frozen=True)
@@ -184,6 +194,8 @@ INDICATORS: list[Indicator] = [
               note="미 하이일드 회사채 ETF 가격(HYG/LQD 비율의 피연산)"),
     Indicator("lqd",   "투자등급 ETF(LQD)",  "rate", "yahoo", "LQD", unit="$", decimals=2, up_is_good=None,
               note="미 투자등급 회사채 ETF 가격(HYG/LQD 비율의 피연산)"),
+    Indicator("tlt",   "미 장기국채 ETF(TLT)", "rate", "yahoo", "TLT", unit="$", decimals=2, up_is_good=None,
+              note="미 20년+ 국채 ETF. 금리 하락(=채권 강세) 시 상승 — 회전지도의 방어 극"),
 
     # ── 원자재 (Yahoo 선물) ──
     Indicator("wti",    "WTI 유가",  "commodity", "yahoo", "CL=F", unit="$", decimals=2),
@@ -271,8 +283,8 @@ INDICATORS: list[Indicator] = [
     Indicator("us_net_liq",  "순유동성(연준−RRP−TGA)","liquidity", "derived", "", unit="T$", decimals=2, up_is_good=None, freq="W",
               derived=("us_walcl", "-", "us_rrp", "-", "us_tga"),
               note="연준자산−역레포−TGA. 시중 실질 유동성 근사(위험자산과 동행 경향)"),
-    Indicator("us_m2",       "M2 통화량",          "liquidity", "fred", "M2SL", unit="T$", decimals=2, scale=1e-3, up_is_good=None, freq="M",
-              note="광의통화 M2(조달러)"),
+    Indicator("us_m2",       "M2 통화량",          "liquidity", "fred", "WM2NS", unit="T$", decimals=2, scale=1e-3, up_is_good=None, freq="W",
+              note="광의통화 M2(조달러, 주간·계절조정 전). 종전 월별 M2SL에서 주간으로 전환"),
 
     # ── 한국 거시 (ECOS; 키 있을 때만 활성) ──
     Indicator("kr_base_rate", "한국 기준금리", "kr_macro", "ecos", "722Y001",
@@ -281,22 +293,25 @@ INDICATORS: list[Indicator] = [
               unit="%", decimals=2, ecos_item="0", ecos_cycle="M", up_is_good=False,
               transform="yoy", freq="M"),
 
-    # 한국 금리(FRED·OECD; ECOS 키 없이도 동작) + 한미 10년 금리차(파생)
-    Indicator("kr_10y",       "한국 국고 10년", "kr_macro", "fred", "IRLTLT01KRM156N",
-              unit="%", decimals=2, up_is_good=None, freq="M",
-              note="OECD 기준 한국 10년 국채수익률(월). 한미 금리차의 한국 축"),
+    # 한국 금리(ECOS 시장금리 '일별' 817Y002) + 한미 10년 금리차(파생)
+    # OECD 월별(FRED IRLTLT01KRM156N)에서 전환 — 월 1회 → 매 영업일 갱신. ECOS 키 필요.
+    Indicator("kr_10y",       "한국 국고 10년", "kr_macro", "ecos", "817Y002",
+              unit="%", decimals=2, up_is_good=None, freq="D",
+              ecos_item="010210000", ecos_cycle="D",
+              note="한국은행 시장금리(일별) 국고채 10년. 한미 금리차의 한국 축"),
     Indicator("kr_us_10y_spread", "한미 10년 금리차(미−한)", "kr_macro", "derived", "",
-              unit="%", decimals=2, up_is_good=None, freq="M",
+              unit="%", decimals=2, up_is_good=None, freq="D",
               derived=("us10y", "-", "kr_10y"),
               note="미국−한국 10년 국채금리차(%p). 양(+)=미 금리 우위(원화 약세·자본유출 압력), 음(−)=한국 우위"),
 
     # ⑧ 한국 심화: KTB 단기축 + 장단기차(10Y−3M, FRED) + 수출 물량 모멘텀(ECOS)
     # (수출 '금액'지수는 원화 약세로 +57% 왜곡 → 아래 '물량'지수 YoY 사용; FRED OECD 수출도 동일 왜곡이라 미사용)
-    Indicator("kr_3m",        "한국 3개월 금리", "kr_macro", "fred", "IR3TIB01KRM156N",
-              unit="%", decimals=2, up_is_good=None, freq="M",
-              note="OECD 기준 한국 3개월 시장금리(월). 한국 국채 커브 단기축·정책금리 근사"),
+    Indicator("kr_3m",        "한국 3개월 금리", "kr_macro", "ecos", "817Y002",
+              unit="%", decimals=2, up_is_good=None, freq="D",
+              ecos_item="010502000", ecos_cycle="D",
+              note="한국은행 시장금리(일별) CD 91일물. 한국 커브 단기축·정책금리 근사"),
     Indicator("kr_term_spread", "한국 장단기금리차(10Y−3M)", "kr_macro", "derived", "",
-              unit="%", decimals=2, up_is_good=None, freq="M",
+              unit="%", decimals=2, up_is_good=None, freq="D",
               derived=("kr_10y", "-", "kr_3m"),
               note="한국 국채 10Y−3M(%p). 음수=장단기 역전(경기둔화·침체 신호), 확대=경기회복 기대"),
 

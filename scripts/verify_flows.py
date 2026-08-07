@@ -128,6 +128,20 @@ if bundle["asset"]:
         if by.get("usdkrw", 0) <= 0:
             failures.append(f"[위험성격] usdkrw 가 방어(양수)가 아님: {by.get('usdkrw')}")
 
+# 순위표 기준값 (현재순위, 3개월전순위, 3개월수익률%).
+# 값을 고정해두지 않았던 탓에, 룩백을 '봉 개수'로 세어 주말 거래 자산(btc)이
+# 훨씬 짧은 기간을 보던 버그가 변이 테스트를 통과해버렸다 — btc 가 +5.48%(2위)로
+# 표시됐지만 실제 3개월은 -19.86%(14위)였다. 구조만 검사하면 이런 결함은 안 잡힌다.
+GOLDEN_RANK = {
+    "copper": (1, 7, 7.33),      "eustoxx": (2, 9, 5.73),
+    "sp500": (3, 6, 5.08),       "nikkei": (4, 3, 2.81),
+    "nasdaq": (5, 4, 2.1),       "hyg": (6, 10, -0.5),
+    "hangseng": (7, 13, -1.14),  "usdkrw": (8, 11, -2.32),
+    "tlt": (9, 12, -3.65),       "shanghai": (10, 8, -5.93),
+    "gold": (11, 14, -9.13),     "kospi": (12, 2, -14.05),
+    "wti": (13, 1, -18.09),      "btc": (14, 5, -19.86),
+}
+
 if not bundle["ranks"]:
     failures.append("[순위표] 비어 있음")
 else:
@@ -138,6 +152,16 @@ else:
         failures.append("[순위표] key 중복")
     if sorted(r["now"] for r in bundle["ranks"]) != list(range(1, len(bundle["ranks"]) + 1)):
         failures.append("[순위표] now 순위가 1..N 연속이 아님")
+    got_rank = {r["key"]: (r["now"], r["prev"], r["m3"]) for r in bundle["ranks"]}
+    if set(got_rank) != set(GOLDEN_RANK):
+        failures.append(f"[순위표] 구성 불일치: {sorted(set(got_rank) ^ set(GOLDEN_RANK))}")
+    for key, exp in GOLDEN_RANK.items():
+        got = got_rank.get(key)
+        if got is None:
+            failures.append(f"[순위표] {key} 누락")
+        elif got[:2] != exp[:2] or abs(got[2] - exp[2]) > 0.05:
+            failures.append(f"[순위표] {key} 불일치 {got} != {exp}")
+    print(f"   순위 기준값 {len(GOLDEN_RANK)}개 대조 완료")
 
 if not bundle["summary"] or not bundle["summary"].get("text"):
     failures.append("[요약] text 없음")

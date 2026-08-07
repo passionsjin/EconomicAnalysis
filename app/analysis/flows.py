@@ -10,7 +10,9 @@
 """
 from __future__ import annotations
 
+import bisect
 import math
+from datetime import date, timedelta
 
 from .. import repository as repo
 
@@ -186,35 +188,67 @@ def region_map() -> dict | None:
 
 
 # 순위표 대상 — 지도에 없는 자산까지 넓게 본다(지도는 좁게, 표는 넓게).
-_RANK_KEYS: list[tuple[str, str]] = [
-    ("sp500", "S&P500"), ("nasdaq", "나스닥"), ("kospi", "코스피"),
-    ("eustoxx", "유럽"), ("nikkei", "일본"), ("hangseng", "홍콩"), ("shanghai", "중국본토"),
-    ("tlt", "미 장기국채"), ("hyg", "하이일드채"), ("lqd", "투자등급채"),
-    ("gold", "금"), ("silver", "은"), ("copper", "구리"), ("wti", "WTI"),
-    ("btc", "비트코인"), ("eth", "이더리움"), ("usdkrw", "원/달러"), ("dxy", "달러인덱스"),
+# (지표키, 표시라벨, 환산 환율키, 환산 연산) — 지도와 같은 USD 기준으로 맞춘다.
+_RANK_KEYS: list[tuple[str, str, str, str]] = [
+    ("sp500", "S&P500", "", ""), ("nasdaq", "나스닥", "", ""),
+    ("kospi", "코스피", "usdkrw", "/"), ("eustoxx", "유럽", "eurusd", "*"),
+    ("nikkei", "일본", "usdjpy", "/"), ("hangseng", "홍콩", "", ""),
+    ("shanghai", "중국본토", "usdcny", "/"),
+    ("tlt", "미 장기국채", "", ""), ("hyg", "하이일드채", "", ""), ("lqd", "투자등급채", "", ""),
+    ("gold", "금", "", ""), ("silver", "은", "", ""), ("copper", "구리", "", ""),
+    ("wti", "WTI", "", ""), ("btc", "비트코인", "", ""), ("eth", "이더리움", "", ""),
+    ("usdkrw", "원/달러", "", ""), ("dxy", "달러인덱스", "", ""),
 ]
-_RANK_LOOKBACK = 63       # 3개월 모멘텀
-_MIN_RANK_DAYS = _RANK_LOOKBACK * 2 + 5
+# 룩백은 반드시 달력 기준이어야 한다. 봉 개수로 세면 주말도 거래되는 자산(btc 는
+# 픽스쳐에 주말 봉 370개, sp500 은 0개)이 훨씬 짧은 기간을 보게 되어 순위가 뒤집힌다.
+# 실측: btc 63봉 = +5.48% vs 실제 3개월 = -19.86% (25%p 오차, 2위 -> 13위).
+_RANK_LOOKBACK_DAYS = 91          # 3개월
+_RANK_PREV_DAYS = 182             # 6개월(직전 3개월 구간의 기준점)
+
+
+def _value_at_or_before(dates: list[str], vals: dict[str, float], target: str) -> float | None:
+    """target 이하의 마지막 관측값. 휴장일·결측을 건너뛴다."""
+    i = bisect.bisect_right(dates, target) - 1
+    return vals[dates[i]] if i >= 0 else None
 
 
 def rank_shift() -> list[dict]:
-    """3개월 모멘텀 순위 — 현재와 63거래일 전을 비교해 ▲▼ 를 낸다.
+    """3개월 모멘텀 순위 — 현재와 3개월 전 시점을 비교해 ▲▼ 를 낸다.
 
     각 자산의 자기 이력만 쓰므로(교집합 불필요) 지도보다 대상을 넓게 잡을 수 있다.
+    다만 룩백은 달력 기준이고 가격은 USD 기준이라, 지도와 같은 것을 재는 것이 보장된다.
     """
-    keys = [k for k, _ in _RANK_KEYS]
-    raw = repo.get_series_batch(keys, _POINTS)
+    keys = {k for k, _, _, _ in _RANK_KEYS} | {f for _, _, f, _ in _RANK_KEYS if f}
+    raw = repo.get_series_batch(sorted(keys), _POINTS)
+    S = {k: {p["date"]: p["value"] for p in raw.get(k, []) if p.get("value") is not None}
+         for k in keys}
+
     now_m, prev_m = {}, {}
-    for key, _ in _RANK_KEYS:
-        vals = [p["value"] for p in raw.get(key, []) if p.get("value") is not None]
-        if len(vals) < _MIN_RANK_DAYS:
+    for key, _, fx_key, op in _RANK_KEYS:
+        s = S.get(key) or {}
+        if not s:
             continue
-        base_now = vals[-1 - _RANK_LOOKBACK]
-        base_prev = vals[-1 - _RANK_LOOKBACK * 2]
-        if not base_now or not base_prev:
+        if fx_key:
+            fx = S.get(fx_key) or {}
+            dates = sorted(d for d in s if d in fx)
+            vals = {d: (s[d] / fx[d] if op == "/" else s[d] * fx[d]) for d in dates}
+        else:
+            dates, vals = sorted(s), s
+        if not dates:
             continue
-        now_m[key] = (vals[-1] / base_now - 1.0) * 100.0
-        prev_m[key] = (vals[-1 - _RANK_LOOKBACK] / base_prev - 1.0) * 100.0
+
+        last = date.fromisoformat(dates[-1])
+        t_now = (last - timedelta(days=_RANK_LOOKBACK_DAYS)).isoformat()
+        t_prev = (last - timedelta(days=_RANK_PREV_DAYS)).isoformat()
+        if dates[0] > t_prev:               # 6개월 전 관측이 아예 없으면 비교 불가
+            continue
+        base_now = _value_at_or_before(dates, vals, t_now)
+        base_prev = _value_at_or_before(dates, vals, t_prev)
+        mid = _value_at_or_before(dates, vals, t_now)
+        if not base_now or not base_prev or not mid:
+            continue
+        now_m[key] = (vals[dates[-1]] / base_now - 1.0) * 100.0
+        prev_m[key] = (mid / base_prev - 1.0) * 100.0
     if not now_m:
         return []
 
@@ -223,7 +257,7 @@ def rank_shift() -> list[dict]:
         return {k: i + 1 for i, k in enumerate(order)}
 
     rn, rp = ranked(now_m), ranked(prev_m)
-    label = dict(_RANK_KEYS)
+    label = {k: lbl for k, lbl, _, _ in _RANK_KEYS}
     rows = [{"key": k, "label": label[k], "now": rn[k], "prev": rp[k],
              "shift": rp[k] - rn[k], "m3": round(now_m[k], 2)} for k in rn]
     rows.sort(key=lambda r: r["now"])

@@ -107,6 +107,32 @@ check("자산군", flows.asset_map(), GOLDEN_ASSET, GOLDEN_DAYS["자산군"])
 print()
 check("지역", flows.region_map(), GOLDEN_REGION, GOLDEN_DAYS["지역"])
 
+# ── 독립 구현 대조 (매 실행) ──
+# 위 GOLDEN_* 은 사람이 한 번 붙여넣은 정적 값이라, gen_flows_golden 쪽이 나중에
+# 바뀌면 아무도 눈치채지 못한다. 여기서 두 구현을 같은 픽스쳐로 매번 직접 돌려
+# 대조한다 — 이 대조가 "두 독립 구현의 일치"라는 검증의 근거를 실시간으로 유지한다.
+print()
+import gen_flows_golden as oracle                                    # noqa: E402
+
+_fix_series = oracle.load_fixture()
+for _name, _spec, _ in oracle.SPECS:
+    _dates, _pts = oracle.rrg(_spec, _fix_series)
+    _keys = [s[0] for s in _spec]
+    # flows 쪽 동일 스펙 구성 — 라벨·자산군은 좌표에 무관하므로 키·환율 규칙만 맞춘다
+    _flows_spec = [(k, lbl, "equity", fk, op) for k, lbl, fk, op in _spec]
+    _got = flows._rrg(_flows_spec)
+    if not _got:
+        failures.append(f"[독립대조] {_name} 계산 실패")
+        continue
+    if _got["days"] != len(_dates):
+        failures.append(f"[독립대조] {_name} 거래일 {_got['days']} != 오라클 {len(_dates)}")
+    _bad = [(r["key"], r["x"], r["y"], *_pts[r["key"]]) for r in _got["rows"]
+            if abs(r["x"] - _pts[r["key"]][0]) > TOL or abs(r["y"] - _pts[r["key"]][1]) > TOL]
+    if _bad:
+        failures.append(f"[독립대조] {_name} 좌표 불일치 {_bad}")
+    print(f"[독립대조] {_name:14s} {len(_keys)}종 · {len(_dates)}일 — "
+          f"{'일치' if not _bad else '불일치'}")
+
 # ── Task 3 요소 검증 ──
 bundle = flows.build_flows()
 print()

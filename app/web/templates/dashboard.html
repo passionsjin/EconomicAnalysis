@@ -22,6 +22,7 @@
   <div class="actions">
     <a class="btn ghost" href="/history">이력</a>
     <a class="btn ghost" href="/hyundai">📈 현대차</a>
+    <a class="btn ghost" href="/shinhan">🏦 신한지주</a>
     <label class="auto"><input type="checkbox" id="autorefresh" checked> 자동새로고침</label>
     <button class="btn primary" id="collect-btn" onclick="collectNow()">⟳ 지금 수집</button>
   </div>
@@ -199,6 +200,38 @@
     <div class="brief-head"><span class="badge neutral">대기</span><h2>브리핑 생성 대기 중</h2></div>
   {% endif %}
 </section>
+
+{# ───────── 자금 회전지도: 요약 항상 노출 + 지도는 접힘(브리핑 서사 vs 측정 대조) ───────── #}
+{% if d.flows and d.flows.summary %}
+{% set fl = d.flows %}
+<section class="card flowcard">
+  <div class="flowcard-head">
+    <h2>자금 회전지도</h2>
+    <a class="btn ghost flowcard-more" href="/flows">지역별로 보기 →</a>
+  </div>
+  <p class="flowcard-summary">{{ fl.summary.text }}</p>
+  {% if fl.asset and fl.asset.rows %}
+  <details class="flowcard-map" id="flowDetails" ontoggle="saveFlowOpen(this)">
+    <summary>🧭 지도 펼치기 — 어느 자산군이 앞서고 어디서 밀렸는지 8주 궤적으로</summary>
+    <p class="muted" style="margin:8px 0 0;font-size:12px">
+      기준 {{ fl.asset.as_of }} · 공통 거래일 {{ fl.asset.days }}일 ·
+      가격 상대강도로 본 대리지표입니다(실제 자금유입 아님)
+    </p>
+    <div class="rrg-canvas"><canvas id="flow-asset"></canvas></div>
+    <div class="rrg-legend">
+      <div class="rrg-shapes">
+        <span>●&nbsp;주식</span><span>■&nbsp;채권</span><span>▲&nbsp;실물</span>
+        <span>◆&nbsp;코인</span><span>★&nbsp;통화</span>
+      </div>
+      <div class="rrg-scale" title="VIX 급등일 평균 수익률. 위기 때 같이 빠지면 공격, 버티면 방어">
+        <span class="muted" id="flow-risk-lo">공격</span><i></i>
+        <span class="muted" id="flow-risk-hi">방어</span>
+      </div>
+    </div>
+  </details>
+  {% endif %}
+</section>
+{% endif %}
 
 {# ───────── 종합 오버레이: 섹터 상대강도 · 수익률곡선 · 크로스에셋 모멘텀 ───────── #}
 {% if d.overlays and (d.overlays.sector_rs or d.overlays.yield_curve or d.overlays.cross_momentum) %}
@@ -400,6 +433,9 @@
   window.__BRIEFING_MD__ = {{ (d.briefing.body_md if d.briefing and d.briefing.ok else "") | tojson }};
   window.__HISTORICAL__ = {{ 'true' if historical else 'false' }};
   window.__YIELD_CURVE__ = {{ (d.overlays.yield_curve if d.overlays and d.overlays.yield_curve else none) | tojson }};
+  /* 자금 회전지도(지도1만). 지역 지도·순위표는 /flows 전용 페이지에 있다. */
+  window.__FLOW_ASSET__  = {{ (d.flows.asset if d.flows and d.flows.asset else none) | tojson }};
+  window.__FLOW_REGION__ = null;
   window.__HOLDABLE__ = {{ (d.holdable if d.holdable else []) | tojson }};
   window.__ALLOCATION__ = {{ (d.allocation if d.allocation else none) | tojson }};
 </script>

@@ -228,7 +228,32 @@ function flowDrawRRG(canvasId, map, opts) {
   }
 }
 
+/* 접힌 <details> 안의 캔버스는 높이가 0이라 지금 그리면 찌그러진다.
+   보이면 즉시, 접혀 있으면 처음 펼칠 때 한 번만 그린다. */
+function flowDrawWhenVisible(canvasId, map, opts) {
+  const el = document.getElementById(canvasId);
+  if (!el || !map) return;
+  const box = el.closest('details');
+  if (!box || box.open) { flowDrawRRG(canvasId, map, opts); return; }
+  box.addEventListener('toggle', function once() {
+    if (!box.open) return;
+    box.removeEventListener('toggle', once);
+    flowDrawRRG(canvasId, map, opts);
+  });
+}
+
+/* 지도 펼침 상태를 기억한다 — 원화환산·쉬운설명 토글과 같은 방식. */
+function saveFlowOpen(el) {
+  try { localStorage.setItem('flowMapOpen', el.open ? '1' : '0'); } catch (e) { /* 무시 */ }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-  flowDrawRRG('flow-asset', window.__FLOW_ASSET__, { useRisk: true });
-  flowDrawRRG('flow-region', window.__FLOW_REGION__, { useRisk: false });
+  const box = document.getElementById('flowDetails');
+  if (box) {
+    let open = false;
+    try { open = localStorage.getItem('flowMapOpen') === '1'; } catch (e) { /* 무시 */ }
+    box.open = open;
+  }
+  flowDrawWhenVisible('flow-asset', window.__FLOW_ASSET__, { useRisk: true });
+  flowDrawWhenVisible('flow-region', window.__FLOW_REGION__, { useRisk: false });
 });

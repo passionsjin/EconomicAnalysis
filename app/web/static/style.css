@@ -928,3 +928,16 @@ body{
 .rrg-scale i{display:block;width:120px;height:8px;border-radius:4px;
   background:linear-gradient(90deg,#e66767,#8a94a6,#3987e5)}
 .rrg-howto{font-size:12px;margin:8px 0 0;line-height:1.6}
+
+/* ── 대시보드 인라인 자금 회전지도 ── */
+.flowcard{margin:0 0 16px}
+.flowcard-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.flowcard-summary{font-size:15px;line-height:1.55;margin:6px 0 0}
+.flowcard-more{font-size:12px;padding:5px 10px;white-space:nowrap}
+.flowcard-map{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+.flowcard-map>summary{cursor:pointer;font-size:13px;color:var(--muted);
+  list-style:none;padding:4px 0;user-select:none}
+.flowcard-map>summary:hover{color:var(--txt)}
+.flowcard-map>summary::-webkit-details-marker{display:none}
+.flowcard-map>summary::before{content:'▸ ';font-size:11px}
+.flowcard-map[open]>summary::before{content:'▾ '}

@@ -136,5 +136,5 @@
   window.__FLOW_ASSET__  = {{ f.asset | tojson }};
   window.__FLOW_REGION__ = {{ f.region | tojson }};
 </script>
-<script src="/static/flows.js"></script>
+{# flows.js 는 base.html 에서 전역 로드된다 — 여기서 다시 부르면 두 번 그려진다 #}
 {% endblock %}

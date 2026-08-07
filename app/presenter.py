@@ -8,19 +8,20 @@ from . import repository as repo
 from .analysis import alerts as alerts_mod
 from .analysis import allocation as allocation_mod
 from .analysis import calendar_util
+from .analysis import flows as flows_mod
 from .analysis import overlays as overlays_mod
 from .analysis import portfolio as portfolio_mod
 from .analysis import regime as regime_mod
 from .analysis import stats as stats_mod
 from .analysis import verdict as verdict_mod
 from .collectors.base import ALL_COLLECTORS
-from .config import (CATEGORIES, INDICATORS, INDICATOR_BY_KEY, Indicator,
+from .config import (BASIS_LABEL, CATEGORIES, INDICATORS, INDICATOR_BY_KEY, Indicator,
                      priority_of, source_tier, is_krw_convertible, so_what)
 
 # 빈도별 신선도 임계(시간) — 초과 시 'stale' 경고. 월별은 발표주기 고려해 넉넉히.
 _STALE_HOURS = {"D": 24 * 3, "W": 24 * 10, "M": 24 * 55}
-# 변화 기준 라벨(직전 관측이 며칠/주/월 전인지)
-_BASIS_LABEL = {"D": "전일", "W": "전주", "M": "전월"}
+# 변화 기준 라벨(직전 관측이 며칠/주/월 전인지) — SSOT 는 config.BASIS_LABEL
+_BASIS_LABEL = BASIS_LABEL
 
 
 def _staleness(as_of: Optional[str], freq: str) -> Optional[dict]:
@@ -357,6 +358,9 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
         "alerts": _recent_alerts(),
         # 오버레이는 현재 history 기준 → 과거 스냅샷 리포트엔 부적합(시점 불일치)하므로 라이브에서만
         "overlays": overlays_mod.build_overlays() if snapshot_id is None else None,
+        # 자금 회전지도도 같은 이유로 라이브 전용. 대시보드엔 요약+지도1만 싣고
+        # 지역 지도·순위표는 /flows 전용 페이지에 둔다(스펙 7절).
+        "flows": flows_mod.build_flows() if snapshot_id is None else None,
         "risk_alerts": risk_alerts,
         # 권고 자산비중 = 현재 레짐 점수의 행동 번역 → 라이브에서만(과거 리포트엔 부적합)
         "allocation": allocation_mod.recommend_allocation(regime) if snapshot_id is None else None,

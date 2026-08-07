@@ -97,6 +97,7 @@ function flowDrawRRG(canvasId, map, opts) {
     return {
       label: r.label,
       data: r.tail.map((p) => ({ x: p.x, y: p.y, date: p.date })),
+      _rgb: rgb,                       // hover 시 선을 다시 칠하려면 원색이 필요하다
       showLine: true,
       /* 꼬리 선은 반투명으로 물러나게 한다 — 10개 궤적이 불투명하면 서로 뒤엉켜
          어느 꼬리가 어느 점 것인지 추적할 수 없다. 꼬리는 맥락, 현재 위치가 메시지다. */
@@ -178,6 +179,19 @@ function flowDrawRRG(canvasId, map, opts) {
       responsive: true,
       maintainAspectRatio: false,
       layout: { padding: { right: 64, top: 6 } },   // 오른쪽 라벨 잘림 방지
+      /* 점에 hover 하면 그 자산의 꼬리만 굵고 진하게 — 나머지는 그대로 물러나 있어
+         교차 구간에서도 궤적 하나를 눈으로 따라갈 수 있다. */
+      onHover(_evt, active, chart) {
+        const hit = active.length ? active[0].datasetIndex : -1;
+        if (chart.$flowHover === hit) return;        // 같은 상태면 재그리기 안 함
+        chart.$flowHover = hit;
+        chart.data.datasets.forEach((ds, i) => {
+          const on = i === hit;
+          ds.borderColor = flowRgba(ds._rgb, on ? 0.95 : 0.3);
+          ds.borderWidth = on ? 2.8 : 1.2;
+        });
+        chart.update('none');
+      },
       scales: {
         x: {
           min: xr.min, max: xr.max,

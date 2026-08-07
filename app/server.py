@@ -137,11 +137,28 @@ def api_shinhan_analysis():
 
 @app.get("/flows", response_class=HTMLResponse)
 def flows_page(request: Request):
-    """자금 회전지도 — 1단계 검증용 별도 페이지(2단계에서 대시보드로 이관)."""
+    """자금 회전지도 — 지역 지도·순위표·LLM 해설(대시보드엔 요약+지도1만)."""
+    data = flows_mod.build_flows()
+    analysis = flows_mod.get_cached_analysis()   # 캐시만 — LLM 차단 없음
+    if not analysis:
+        flows_mod.trigger_analysis_async(data)   # 백그라운드 생성 시작
     return templates.TemplateResponse("flows.html", {
         "request": request,
-        "f": flows_mod.build_flows(),
+        "f": data,
+        "analysis": analysis,
+        "analysis_generating": analysis is None,
         "title": "자금 회전지도",
+    })
+
+
+@app.get("/api/flows/analysis")
+def api_flows_analysis():
+    """해설 완료 여부 폴링 — 프론트엔드 자동새로고침용."""
+    cached = flows_mod.get_cached_analysis()
+    return JSONResponse({
+        "ready": cached is not None,
+        "generating": flows_mod._analysis_generating.is_set(),
+        "data": cached,
     })
 
 

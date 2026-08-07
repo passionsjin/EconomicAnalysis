@@ -11,11 +11,16 @@
 from __future__ import annotations
 
 import bisect
+import logging
 import math
 import threading
-from datetime import date, timedelta
+import time
+from datetime import date, datetime, timedelta, timezone
 
 from .. import repository as repo
+from . import llm
+
+logger = logging.getLogger(__name__)
 
 _W_RS = 63        # 상대강도 정규화 창(3개월)
 _W_MOM = 21       # 상대모멘텀 정규화 창(1개월)
@@ -325,6 +330,128 @@ def _build_flows_uncached() -> dict:
         "ranks": safe(rank_shift, []),
         "summary": _summary(asset),
     }
+
+
+_ANALYSIS_TTL = 3 * 3600        # LLM 해설 캐시 — 3시간(수집 3회분)
+_analysis_lock = threading.Lock()
+_analysis_cache: dict = {"data": None, "ts": 0.0}
+_analysis_generating = threading.Event()
+
+
+def _fmt_rows(rows: list[dict], with_risk: bool) -> str:
+    out = []
+    for r in rows:
+        move = f"{r['quadrant_prev']}->{r['quadrant']}" if r["quadrant_prev"] != r["quadrant"] \
+            else r["quadrant"]
+        risk = f", 위험성격 {r['risk']:+.2f}%" if (with_risk and r.get("risk") is not None) else ""
+        out.append(f"- {r['label']}({r['group_label']}): 상대강도 {r['x']:.2f}, "
+                   f"모멘텀 {r['y']:.2f}, {move}{risk}")
+    return "\n".join(out)
+
+
+def _build_analysis_prompt(f: dict) -> str:
+    """회전지도 해설 프롬프트.
+
+    현행 모델은 지시를 문자 그대로 따르고 기본 출력이 길다 — 단계를 처방하는 대신
+    목표·독자·한계를 주고 간결성을 명시한다. 과잉 처방은 오히려 품질을 떨어뜨린다.
+    """
+    a, r = f.get("asset"), f.get("region")
+    p = [
+        "너는 한국 거주 개인투자자를 위한 자산배분 조언자다. 아래는 RRG(상대강도 회전) 지표다.",
+        "",
+        "지표 읽는 법: x=상대강도(3개월 위치), y=상대모멘텀(1개월 방향), 둘 다 100이 기준선.",
+        "사분면은 주도(x>=100,y>=100) / 약화(x>=100,y<100) / 개선(x<100,y>=100) / 지체(x<100,y<100)이고,",
+        "자금은 통상 개선->주도->약화->지체 순으로 시계방향으로 돈다.",
+        "위험성격은 VIX 급등일 평균수익률(%)로, 음수일수록 공격적(위기에 같이 빠짐), 양수일수록 방어적이다.",
+        "",
+    ]
+    if a:
+        p += [f"[자산군 회전 — 기준 {a['as_of']}, 공통 거래일 {a['days']}일]", _fmt_rows(a["rows"], True), ""]
+    if r:
+        p += [f"[지역 회전 — 기준 {r['as_of']}, 공통 거래일 {r['days']}일]", _fmt_rows(r["rows"], False), ""]
+    if f.get("ranks"):
+        top = f["ranks"][:5]
+        bot = f["ranks"][-3:]
+        p += ["[3개월 모멘텀 순위 — USD 기준, 달력 91일]",
+              "\n".join(f"- {x['label']}: {x['now']}위(3개월 전 {x['prev']}위), {x['m3']:+.2f}%"
+                        for x in top + bot), ""]
+
+    p += [
+        "이 데이터로 한국 개인투자자가 무엇을 해야 하는지 해설하라.",
+        "",
+        "반드시 지킬 것:",
+        "- 가격 상대강도는 실제 자금유입이 아니라 그 대리지표다. '자금이 유입됐다'고 단정하지 말고",
+        "  '상대적으로 앞섰다/밀렸다'로 서술하라. 이 한계를 독자가 알 수 있게 하라.",
+        "- 위 숫자에 없는 사실을 지어내지 마라. 뉴스·이벤트·전망을 추측하지 마라.",
+        "- 특정 종목 매수·매도를 지시하지 마라. 자산군 비중 관점으로 말하라.",
+        "- 간결하게. 핵심을 먼저 말하고 근거는 뒤에. 불릿 나열로 채우지 마라.",
+        "",
+        'JSON 하나만 출력하라(다른 텍스트 금지): {"headline": "...", "summary": "...", "body_md": "..."}',
+        "- headline: 지금 국면을 한 줄로(40자 이내)",
+        "- summary: 개인투자자가 취할 행동 2~3문장",
+        "- body_md: 마크다운 해설. 자산군 흐름 / 지역 흐름 / 유의점 세 단락, 총 600자 내외",
+    ]
+    return "\n".join(p)
+
+
+def get_cached_analysis() -> dict | None:
+    """캐시된 해설만 반환 — LLM 호출 없음."""
+    with _analysis_lock:
+        cached = _analysis_cache.get("data")
+        if cached and (time.monotonic() - _analysis_cache.get("ts", 0.0)) < _ANALYSIS_TTL:
+            return cached
+    return None
+
+
+def get_analysis(f: dict) -> dict | None:
+    """회전지도 LLM 해설(3시간 캐시). 지도가 없으면 None."""
+    if not (f or {}).get("asset"):
+        return None
+    cached = get_cached_analysis()
+    if cached:
+        return cached
+
+    err = llm.availability_error()
+    if err:
+        return {"ok": False, "error": err}
+    try:
+        res = llm.complete(_build_analysis_prompt(f), timeout=180, label="회전지도 해설")
+        if not res.ok:
+            return {"ok": False, "error": res.error}
+        from .briefing import _extract_json_obj  # noqa: PLC0415
+        obj = _extract_json_obj(res.text)
+        if not obj:
+            return {"ok": False, "error": "JSON 파싱 실패"}
+        result = {
+            "ok": True,
+            "headline": str(obj.get("headline", ""))[:120],
+            "summary": str(obj.get("summary", "")),
+            "body_md": str(obj.get("body_md", "")),
+            "ts_utc": datetime.now(timezone.utc).isoformat(),
+            "model": res.model,
+        }
+        with _analysis_lock:
+            _analysis_cache["data"], _analysis_cache["ts"] = result, time.monotonic()
+        return result
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("회전지도 LLM 해설 실패: %s", exc)
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+def trigger_analysis_async(f: dict) -> bool:
+    """백그라운드 생성 시작. 이미 캐시가 유효하거나 생성 중이면 False."""
+    if not (f or {}).get("asset") or get_cached_analysis() or _analysis_generating.is_set():
+        return False
+
+    def _gen():
+        try:
+            get_analysis(f)
+        finally:
+            _analysis_generating.clear()
+
+    _analysis_generating.set()
+    threading.Thread(target=_gen, name="flows-analysis", daemon=True).start()
+    return True
 
 
 def build_flows() -> dict:

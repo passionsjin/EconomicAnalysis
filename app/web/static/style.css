@@ -941,3 +941,20 @@ body{
 .flowcard-map>summary::-webkit-details-marker{display:none}
 .flowcard-map>summary::before{content:'▸ ';font-size:11px}
 .flowcard-map[open]>summary::before{content:'▾ '}
+
+/* ── 회전지도 LLM 해설 ── */
+.flow-analysis{margin-top:16px;border-left:3px solid var(--accent)}
+.flow-sec-head{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;
+  color:var(--muted);margin-bottom:8px}
+.flow-analysis-headline{font-size:17px;font-weight:600;line-height:1.4;margin-bottom:6px}
+.flow-analysis-summary{font-size:14px;line-height:1.6;margin:0}
+.flow-analysis-more{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+.flow-analysis-more>summary{cursor:pointer;font-size:13px;color:var(--muted);
+  list-style:none;padding:4px 0;user-select:none}
+.flow-analysis-more>summary:hover{color:var(--txt)}
+.flow-analysis-more>summary::-webkit-details-marker{display:none}
+.flow-analysis-progress{height:3px;border-radius:2px;background:var(--card2);
+  overflow:hidden;margin-top:10px}
+.flow-analysis-bar{height:100%;width:35%;border-radius:2px;background:var(--warn);
+  animation:flowBar 1.5s ease-in-out infinite}
+@keyframes flowBar{0%{margin-left:-35%}100%{margin-left:100%}}

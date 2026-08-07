@@ -25,6 +25,36 @@
 </section>
 {% endif %}
 
+{# ─── LLM 해설 (백그라운드 생성 + 폴링; 현대차·신한과 같은 패턴) ─── #}
+{% if analysis and analysis.ok %}
+<section class="card flow-analysis">
+  <div class="flow-sec-head">🤖 AI 해설
+    <span class="muted" style="font-size:11px">{{ analysis.model or '' }} ·
+      <time class="kst rel" data-utc="{{ analysis.ts_utc or '' }}">—</time></span>
+  </div>
+  <div class="flow-analysis-headline">{{ analysis.headline }}</div>
+  <p class="flow-analysis-summary">{{ analysis.summary }}</p>
+  <details class="flow-analysis-more">
+    <summary>📄 상세 해설 펼치기 — 자산군 흐름 · 지역 흐름 · 유의점</summary>
+    <div class="brief-body markdown" id="flow-body-md"></div>
+  </details>
+</section>
+{% elif analysis and not analysis.ok %}
+<section class="card flow-analysis" style="border-left-color:var(--bad)">
+  <div class="flow-sec-head">🤖 AI 해설</div>
+  <p class="muted">해설 생성 실패: {{ analysis.error }}</p>
+  <button class="btn ghost" style="margin-top:8px" onclick="location.reload()">↺ 재시도</button>
+</section>
+{% elif analysis_generating %}
+<section class="card flow-analysis" id="flow-analysis-loading" style="border-left-color:var(--warn)">
+  <div class="flow-sec-head">🤖 AI 해설 <span class="muted" style="font-size:11px">생성 중...</span></div>
+  <p class="muted" style="font-size:13px">
+    LLM이 회전지도를 읽고 있습니다. 통상 60~120초 소요되며, 완료되면 자동으로 표시됩니다.
+  </p>
+  <div class="flow-analysis-progress"><div class="flow-analysis-bar"></div></div>
+</section>
+{% endif %}
+
 {% macro rrg_table(m, title, note, canvas_id, show_risk_legend) %}
 <section class="card" style="margin-top:16px">
   <h2 style="margin:0 0 4px">{{ title }}</h2>
@@ -135,6 +165,30 @@
 <script>
   window.__FLOW_ASSET__  = {{ f.asset | tojson }};
   window.__FLOW_REGION__ = {{ f.region | tojson }};
+  window.__FLOW_ANALYSIS_MD__ = {{ (analysis.body_md if analysis and analysis.ok else '') | tojson }};
 </script>
 {# flows.js 는 base.html 에서 전역 로드된다 — 여기서 다시 부르면 두 번 그려진다 #}
+<script>
+/* 마크다운 본문 렌더 — dashboard/hyundai 와 동일하게 marked + DOMPurify */
+(function () {
+  const el = document.getElementById("flow-body-md");
+  const md = window.__FLOW_ANALYSIS_MD__;
+  if (el && md && window.marked && window.DOMPurify) {
+    el.innerHTML = DOMPurify.sanitize(marked.parse(md));
+  }
+})();
+
+/* 해설 생성 완료 시 자동 새로고침 */
+(function () {
+  if (!document.getElementById("flow-analysis-loading")) return;
+  let ticks = 0;
+  const poll = setInterval(async () => {
+    try {
+      const j = await (await fetch("/api/flows/analysis")).json();
+      if (j.ready) { clearInterval(poll); location.reload(); }
+    } catch (e) { /* 네트워크 흔들림은 다음 틱에 재시도 */ }
+    if (++ticks > 60) clearInterval(poll);   // 5분 후 포기
+  }, 5000);
+})();
+</script>
 {% endblock %}

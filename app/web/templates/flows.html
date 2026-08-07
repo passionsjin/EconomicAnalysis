@@ -25,12 +25,33 @@
 </section>
 {% endif %}
 
-{% macro rrg_table(m, title, note) %}
+{% macro rrg_table(m, title, note, canvas_id, show_risk_legend) %}
 <section class="card" style="margin-top:16px">
   <h2 style="margin:0 0 4px">{{ title }}</h2>
   {% if m %}
   <p class="muted" style="margin:0 0 10px;font-size:12px">
     기준 {{ m.as_of }} · 공통 거래일 {{ m.days }}일 · {{ note }}
+  </p>
+
+  <div class="rrg-canvas"><canvas id="{{ canvas_id }}"></canvas></div>
+
+  {# 지역 지도는 전부 주식이라 색·모양이 구분에 쓰이지 않는다 — 범례도 달지 않는다 #}
+  {% if show_risk_legend %}
+  <div class="rrg-legend">
+    <div class="rrg-shapes">
+      <span>●&nbsp;주식</span><span>■&nbsp;채권</span><span>▲&nbsp;실물</span>
+      <span>◆&nbsp;코인</span><span>★&nbsp;통화</span>
+    </div>
+    <div class="rrg-scale" title="VIX 급등일 평균 수익률. 위기 때 같이 빠지면 공격, 버티면 방어">
+      <span class="muted" id="flow-risk-lo">공격</span>
+      <i></i>
+      <span class="muted" id="flow-risk-hi">방어</span>
+    </div>
+  </div>
+  {% endif %}
+  <p class="muted rrg-howto">
+    큰 점이 현재 위치, 이어진 꼬리가 최근 8주 이동경로입니다.
+    자금은 보통 <strong>개선 → 주도 → 약화 → 지체</strong> 순으로 시계방향으로 돕니다.
   </p>
   <table class="tbl" style="width:100%">
     <thead>
@@ -66,8 +87,8 @@
 </section>
 {% endmacro %}
 
-{{ rrg_table(f.asset, '지도 1 — 자산군 회전', '주식이냐 채권이냐 금이냐') }}
-{{ rrg_table(f.region, '지도 2 — 지역 회전', '주식 안에서 어느 나라냐') }}
+{{ rrg_table(f.asset, '지도 1 — 자산군 회전', '주식이냐 채권이냐 금이냐', 'flow-asset', true) }}
+{{ rrg_table(f.region, '지도 2 — 지역 회전', '주식 안에서 어느 나라냐', 'flow-region', false) }}
 
 {% if f.ranks %}
 <section class="card" style="margin-top:16px">
@@ -104,4 +125,12 @@
   </p>
 </section>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.__FLOW_ASSET__  = {{ f.asset | tojson }};
+  window.__FLOW_REGION__ = {{ f.region | tojson }};
+</script>
+<script src="/static/flows.js"></script>
 {% endblock %}

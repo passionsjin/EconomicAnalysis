@@ -883,3 +883,48 @@ body{
   .hmc-fin-grid{grid-template-columns:1fr}
   .hmc-analyst-wrap{flex-direction:column}
 }
+
+/* ════════════════════════════════════════════════════════════════
+   신한지주 전용 — 핵심 은행 지표 카드 (.shb-kpi-*)
+   나머지 요소는 .hmc-* 클래스 재사용
+   ════════════════════════════════════════════════════════════════ */
+.shb-kpi-groups{display:flex;flex-direction:column;gap:18px}
+.shb-kpi-group-title{font-size:12px;color:var(--muted);font-weight:600;
+  margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+.shb-kpi-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.shb-kpi-card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:14px 16px;border-left:3px solid var(--line)}
+.shb-kpi-card.good{border-left-color:var(--good)}
+.shb-kpi-card.warn{border-left-color:var(--warn)}
+.shb-kpi-card.bad{border-left-color:var(--bad)}
+.shb-kpi-card.neutral{border-left-color:var(--neutral)}
+.shb-kpi-top{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin-bottom:6px}
+.shb-kpi-label{font-size:13px;color:#d0d8e8;font-weight:600}
+.shb-kpi-hint{font-size:10px;color:var(--muted)}
+.shb-kpi-val{font-size:24px;font-weight:700;font-family:'IBM Plex Mono',ui-monospace,monospace;
+  letter-spacing:-.5px;line-height:1.1;color:#e6ebf3}
+.shb-kpi-val.good{color:var(--good)}.shb-kpi-val.warn{color:var(--warn)}.shb-kpi-val.bad{color:var(--bad)}
+.shb-kpi-note{font-size:11px;color:var(--muted);line-height:1.5;margin-top:7px}
+@media(max-width:600px){
+  .shb-kpi-cards{grid-template-columns:1fr}
+}
+
+/* ── 자금 회전지도(/flows) ── */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th,.tbl td{padding:7px 8px;text-align:right;white-space:nowrap}
+.tbl th{font-weight:600;font-size:11.5px;line-height:1.35;color:var(--muted);
+  border-bottom:1px solid var(--line)}
+.tbl td{border-bottom:1px solid var(--line)}
+.tbl tbody tr:last-child td{border-bottom:none}
+.tbl tbody tr:hover td{background:var(--card2)}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl .mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
+
+.rrg-canvas{position:relative;height:420px;margin:0 0 10px}
+.rrg-legend{display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;
+  padding:8px 2px 0;border-top:1px solid var(--line);margin-top:4px}
+.rrg-shapes{display:flex;flex-wrap:wrap;gap:12px;color:var(--muted);font-size:12px}
+.rrg-scale{display:flex;align-items:center;gap:8px;font-size:11.5px;margin-left:auto}
+.rrg-scale i{display:block;width:120px;height:8px;border-radius:4px;
+  background:linear-gradient(90deg,#e66767,#8a94a6,#3987e5)}
+.rrg-howto{font-size:12px;margin:8px 0 0;line-height:1.6}

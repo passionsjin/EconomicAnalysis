@@ -5,7 +5,7 @@
             경계 자산이 룩백에 따라 색이 깜빡이는 것을 막으려는 것이 연속 스케일의 존재 이유다.
      모양 = 자산군 5종(주식 원 / 채권 사각 / 실물 삼각 / 코인 마름모 / 통화 별)
      라벨 = 개별 정체성(점 옆에 직접 부착 — 범례를 눈으로 왕복할 필요가 없다)
-   지도 2(지역)는 전부 주식이라 색·모양 구분 없이 라벨만 쓴다.
+   지도 2(지역)는 위험성격을 쓰지 않으므로 색·모양을 정체성 보조에 돌려 쓴다(아래 참조).
 
    색상값은 dataviz 검증기 통과분: 두 극 #e66767 <-> #3987e5 가
    표면 #151b26 기준 CVD dE 19.2(protan)/31.4(tritan), 정상시야 29.0, 대비 >=3:1. */
@@ -18,6 +18,31 @@ const FLOW_SHAPE = {
 const FLOW_ATTACK = [230, 103, 103];   // #e66767 공격
 const FLOW_MID    = [138, 148, 166];   // #8a94a6 중립(앱 --muted)
 const FLOW_DEFEND = [57, 135, 229];    // #3987e5 방어
+
+/* 지역 지도는 위험성격을 쓰지 않으므로 색 채널이 비어 있다 — 정체성에 쓴다.
+   6개 궤적이 전부 같은 색이면 교차하는 순간 어느 꼬리가 누구 것인지 알 수 없고,
+   궤적을 따라가는 것이 RRG 의 존재 이유다. dataviz 카테고리 팔레트 다크 스텝.
+   색은 순위가 아니라 개체를 따라야 하므로(rows 는 상대강도 순 정렬이라 인덱스를 쓰면
+   순위가 바뀔 때 생존 자산의 색이 재배정된다) 지표키에 고정 배정한다.
+   정체성은 점 옆 라벨이 담당하고 색은 궤적 추적 보조다 — 색만으로 구분하지 않는다.
+
+   6색을 쓰면 검증기가 하드 FAIL 한다(magenta<->aqua deutan dE 1.6, violet<->blue 정상시야 9.8).
+   all-pairs 를 통과하는 3색만 쓰고, 모자란 구분은 모양으로 채운다 —
+   모양은 선진(원)/신흥(삼각)이라 임의 채널이 아니라 뜻이 있다.
+   3색 all-pairs 검증: 최악쌍 CVD dE 9.4(deutan), 정상시야 20.9, 대비 >=3:1 전부 PASS. */
+const FLOW_REGION_HUE = {
+  sp500:    [57, 135, 229],    // #3987e5 blue    선진
+  eustoxx:  [217, 89, 38],     // #d95926 orange  선진
+  nikkei:   [25, 158, 112],    // #199e70 aqua    선진
+  kospi:    [57, 135, 229],    // blue            신흥
+  shanghai: [217, 89, 38],     // orange          신흥
+  hangseng: [25, 158, 112],    // aqua            신흥
+};
+/* 선진 = 원, 신흥 = 삼각. 색 3종 x 모양 2종 = 6개 조합이 전부 고유하다. */
+const FLOW_REGION_SHAPE = {
+  sp500: 'circle', eustoxx: 'circle', nikkei: 'circle',
+  kospi: 'triangle', shanghai: 'triangle', hangseng: 'triangle',
+};
 
 /* risk(VIX 급등일 평균수익률 %)를 발산 스케일에 태운다.
    domain 은 데이터의 최대 절대값으로 잡아 0 기준 대칭을 유지한다 —
@@ -61,8 +86,10 @@ function flowDrawRRG(canvasId, map, opts) {
   const isLast = (c) => c.dataIndex === c.dataset.data.length - 1;
 
   const datasets = map.rows.map((r) => {
-    const rgb = useRisk ? flowRiskRgb(r.risk, domain) : [59, 130, 246];
-    const shape = FLOW_SHAPE[r.group] || 'circle';
+    const rgb = useRisk ? flowRiskRgb(r.risk, domain)
+                        : (FLOW_REGION_HUE[r.key] || [138, 148, 166]);
+    const shape = useRisk ? (FLOW_SHAPE[r.group] || 'circle')
+                          : (FLOW_REGION_SHAPE[r.key] || 'circle');
     /* star 는 Chart.js 에서 채우기가 아니라 선으로만 그려진다 —
        다른 모양처럼 표면색 링을 두르면 별 자체가 표면색이 되어 사라진다.
        이 스타일만 테두리를 계열색으로 칠한다. */

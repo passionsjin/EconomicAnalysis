@@ -264,20 +264,42 @@ def rank_shift() -> list[dict]:
     return rows
 
 
+_SUMMARY_MAX_NAMES = 3
+
+
+def _names(labels: list[str]) -> str:
+    """이름이 많으면 3개까지만 쓰고 나머지는 개수로 — 문장이 8개를 나열하면 못 읽는다."""
+    if len(labels) <= _SUMMARY_MAX_NAMES:
+        return " · ".join(labels)
+    return f"{' · '.join(labels[:_SUMMARY_MAX_NAMES])} 외 {len(labels) - _SUMMARY_MAX_NAMES}개"
+
+
 def _summary(m: dict | None) -> dict | None:
-    """사분면 진입/이탈을 규칙으로 문장화. LLM 미사용(브리핑 지연 없음)."""
+    """사분면 전이를 규칙으로 문장화. LLM 미사용(브리핑 지연 없음).
+
+    **관측한 것만 말한다.** 이 지도는 가격 상대강도이지 자금유입 측정이 아니므로
+    "자금이 이동했습니다"라고 단정하지 않는다 — 같은 화면이 대리지표임을 명시하는데
+    가장 큰 글씨가 그것을 부정하면 안 된다.
+
+    이탈은 `주도`에서 벗어난 경우로 한정한다. `개선 → 지체`는 '약한 바닥에서
+    회복하다 되밀린 것'이지 주도권 상실이 아니라, 이탈로 부르면 오독을 부른다.
+    """
     if not m:
         return None
     into = [r["label"] for r in m["rows"]
             if r["quadrant"] == "주도" and r["quadrant_prev"] != "주도"]
     out = [r["label"] for r in m["rows"]
-           if r["quadrant"] in ("약화", "지체") and r["quadrant_prev"] in ("주도", "개선")]
+           if r["quadrant_prev"] == "주도" and r["quadrant"] != "주도"]
+    # 자산명은 받침이 제각각이고("금" vs "나스닥" vs "S&P500") 한글이 아닌 것도 있어
+    # 은/는·이/가 를 붙이면 "원/달러은(는)" 같은 문장이 나온다. 목록을 문장 끝에 두고
+    # 어떤 낱말 뒤에도 붙는 '입니다'로 닫아 조사 선택 자체를 없앤다.
     if into and out:
-        text = f"지난 8주 {' · '.join(out)}에서 {' · '.join(into)}(으)로 자금이 이동했습니다."
+        text = (f"지난 8주 상대강도가 앞선 자산은 {_names(into)}, "
+                f"주도권에서 밀린 자산은 {_names(out)}입니다.")
     elif into:
-        text = f"지난 8주 {' · '.join(into)}(이)가 새로 주도권을 잡았습니다."
+        text = f"지난 8주 새로 주도권을 잡은 자산은 {_names(into)}입니다."
     elif out:
-        text = f"지난 8주 {' · '.join(out)}에서 자금이 빠졌습니다."
+        text = f"지난 8주 주도권에서 밀린 자산은 {_names(out)}입니다."
     else:
         text = "지난 8주 사분면 이동이 없었습니다 — 기존 흐름이 유지되고 있습니다."
     return {"into": into, "out": out, "text": text}

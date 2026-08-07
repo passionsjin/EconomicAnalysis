@@ -163,6 +163,44 @@ else:
             failures.append(f"[순위표] {key} 불일치 {got} != {exp}")
     print(f"   순위 기준값 {len(GOLDEN_RANK)}개 대조 완료")
 
+# 꼬리·위험성격·요약 기준값 — 값을 고정하지 않으면 결함이 조용히 지나간다.
+# (순위표가 정확히 그렇게 25%p 틀린 채 변이 테스트 5종을 통과했다.)
+GOLDEN_RISK = {
+    "copper": -0.737, "sp500": -1.558, "nasdaq": -1.971, "hyg": -0.455, "gold": 0.103,
+    "tlt": -0.288, "btc": -1.88, "kospi": -0.92, "usdkrw": 0.251, "wti": 0.287,
+}
+GOLDEN_TAIL_GOLD = [
+    ("2026-06-10", 98.479, 100.692), ("2026-06-17", 98.905, 101.914),
+    ("2026-06-25", 98.542, 99.915),  ("2026-07-02", 99.144, 102.604),
+    ("2026-07-13", 98.974, 100.78),  ("2026-07-21", 99.067, 100.849),
+    ("2026-07-28", 99.644, 102.259), ("2026-08-05", 100.217, 102.555),
+]
+GOLDEN_SUMMARY = ("지난 8주 상대강도가 앞선 자산은 나스닥 · 금, "
+                  "주도권에서 밀린 자산은 S&P500 · 하이일드채 · 원/달러입니다.")
+
+if bundle["asset"]:
+    got_risk = {r["key"]: r["risk"] for r in bundle["asset"]["rows"]}
+    for key, exp in GOLDEN_RISK.items():
+        got = got_risk.get(key)
+        if got is None or abs(got - exp) > 0.005:
+            failures.append(f"[위험성격] {key} 불일치 {got} != {exp}")
+    gold_row = next((r for r in bundle["asset"]["rows"] if r["key"] == "gold"), None)
+    if not gold_row:
+        failures.append("[꼬리] gold 행 없음")
+    else:
+        got_tail = [(p["date"], p["x"], p["y"]) for p in gold_row["tail"]]
+        if len(got_tail) != len(GOLDEN_TAIL_GOLD):
+            failures.append(f"[꼬리] gold 점 개수 {len(got_tail)} != {len(GOLDEN_TAIL_GOLD)}")
+        else:
+            for g, e in zip(got_tail, GOLDEN_TAIL_GOLD):
+                if g[0] != e[0] or abs(g[1] - e[1]) > TOL or abs(g[2] - e[2]) > TOL:
+                    failures.append(f"[꼬리] gold {g} != {e}")
+    print(f"   risk {len(GOLDEN_RISK)}개 · gold 꼬리 {len(GOLDEN_TAIL_GOLD)}점 대조 완료")
+
+if bundle["summary"] and bundle["summary"].get("text") != GOLDEN_SUMMARY:
+    failures.append(f"[요약] 문장 불일치\n      got: {bundle['summary'].get('text')}"
+                    f"\n      exp: {GOLDEN_SUMMARY}")
+
 if not bundle["summary"] or not bundle["summary"].get("text"):
     failures.append("[요약] text 없음")
 else:

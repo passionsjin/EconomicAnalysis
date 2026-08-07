@@ -35,13 +35,17 @@
 
   <div class="rrg-canvas"><canvas id="{{ canvas_id }}"></canvas></div>
 
-  {# 지역 지도는 전부 주식이라 색·모양이 구분에 쓰이지 않는다 — 범례도 달지 않는다 #}
-  {% if show_risk_legend %}
   <div class="rrg-legend">
     <div class="rrg-shapes">
+      {% if show_risk_legend %}
       <span>●&nbsp;주식</span><span>■&nbsp;채권</span><span>▲&nbsp;실물</span>
       <span>◆&nbsp;코인</span><span>★&nbsp;통화</span>
+      {% else %}
+      <span>●&nbsp;선진</span><span>▲&nbsp;신흥·아시아</span>
+      <span class="muted">색은 궤적 추적용 구분입니다</span>
+      {% endif %}
     </div>
+    {% if show_risk_legend %}
     <div class="rrg-scale" title="VIX 급등일 평균 수익률. 위기 때 같이 빠지면 공격, 버티면 방어">
       <span class="muted" id="flow-risk-lo">공격</span>
       <i></i>

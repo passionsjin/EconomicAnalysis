@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import bisect
 import math
+import threading
 from datetime import date, timedelta
 
 from .. import repository as repo
@@ -305,7 +306,11 @@ def _summary(m: dict | None) -> dict | None:
     return {"into": into, "out": out, "text": text}
 
 
-def build_flows() -> dict:
+_cache_lock = threading.Lock()
+_cache: dict = {"key": None, "data": None}
+
+
+def _build_flows_uncached() -> dict:
     """페이지용 묶음. 개별 실패는 None/빈 리스트로 격리해 전체를 무력화하지 않는다."""
     def safe(fn, fallback):
         try:
@@ -320,3 +325,25 @@ def build_flows() -> dict:
         "ranks": safe(rank_shift, []),
         "summary": _summary(asset),
     }
+
+
+def build_flows() -> dict:
+    """스냅샷 단위 캐시. 이력은 수집 때만 바뀌므로 스냅샷 id 가 그대로면 재계산할 이유가 없다.
+
+    전체 계산이 ~113ms 로 대시보드 전체 렌더(~140ms)에 맞먹어, 캐시 없이 인라인하면
+    렌더 시간이 배로 뛴다. 수집 주기가 1시간이라 적중률은 사실상 100%.
+    """
+    try:
+        snap = repo.latest_snapshot()
+        key = snap.get("id") if snap else None
+    except Exception:  # noqa: BLE001
+        key = None
+
+    with _cache_lock:
+        if key is not None and _cache["key"] == key and _cache["data"] is not None:
+            return _cache["data"]
+
+    data = _build_flows_uncached()
+    with _cache_lock:
+        _cache["key"], _cache["data"] = key, data
+    return data

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block content %}
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">🧭</span>
+    <div>
+      <h1>자금 회전지도</h1>
+      <div class="sub">
+        어디서 어디로 돈이 옮겨가는 중인가
+        <span class="pill neutral" style="font-size:10px">검증용 · 8003</span>
+      </div>
+    </div>
+  </div>
+  <div class="actions">
+    <a class="btn ghost" href="/">← 메인 대시보드</a>
+    <button class="btn primary" onclick="location.reload()">⟳ 새로고침</button>
+  </div>
+</header>
+
+{% if f.summary %}
+<section class="card" style="margin-top:16px">
+  <h2 style="margin:0 0 6px">지금 무슨 일이 일어나는가</h2>
+  <p style="font-size:15px;margin:0">{{ f.summary.text }}</p>
+</section>
+{% endif %}
+
+{% macro rrg_table(m, title, note) %}
+<section class="card" style="margin-top:16px">
+  <h2 style="margin:0 0 4px">{{ title }}</h2>
+  {% if m %}
+  <p class="muted" style="margin:0 0 10px;font-size:12px">
+    기준 {{ m.as_of }} · 공통 거래일 {{ m.days }}일 · {{ note }}
+  </p>
+  <table class="tbl" style="width:100%">
+    <thead>
+      <tr>
+        <th style="text-align:left">자산</th><th>분류</th>
+        <th>상대강도<br><span class="muted">3개월 위치</span></th>
+        <th>상대모멘텀<br><span class="muted">1개월 방향</span></th>
+        <th>사분면</th><th>8주 전</th>
+        {% if m.rows and m.rows[0].risk is not none %}<th>위험성격</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in m.rows %}
+      <tr>
+        <td style="text-align:left"><strong>{{ r.label }}</strong></td>
+        <td class="muted">{{ r.group_label }}</td>
+        <td class="mono">{{ '%.2f'|format(r.x) }}</td>
+        <td class="mono">{{ '%.2f'|format(r.y) }}</td>
+        <td>
+          <span class="pill {{ 'good' if r.quadrant in ('주도','개선') else 'bad' }}">{{ r.quadrant }}</span>
+        </td>
+        <td class="muted">{{ r.quadrant_prev }}{% if r.quadrant != r.quadrant_prev %} →{% endif %}</td>
+        {% if r.risk is not none %}
+        <td class="mono {{ 'bad' if r.risk < 0 else 'good' }}">{{ '%+.2f'|format(r.risk) }}%</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">데이터가 부족해 계산할 수 없습니다(최소 130 거래일 필요).</p>
+  {% endif %}
+</section>
+{% endmacro %}
+
+{{ rrg_table(f.asset, '지도 1 — 자산군 회전', '주식이냐 채권이냐 금이냐') }}
+{{ rrg_table(f.region, '지도 2 — 지역 회전', '주식 안에서 어느 나라냐') }}
+
+{% if f.ranks %}
+<section class="card" style="margin-top:16px">
+  <h2 style="margin:0 0 10px">3개월 모멘텀 순위 변동</h2>
+  <table class="tbl" style="width:100%">
+    <thead><tr><th style="text-align:left">자산</th><th>3개월 전</th><th>현재</th><th>변동</th><th>3개월 수익률</th></tr></thead>
+    <tbody>
+      {% for r in f.ranks %}
+      <tr>
+        <td style="text-align:left">{{ r.label }}</td>
+        <td class="muted mono">{{ r.prev }}위</td>
+        <td class="mono"><strong>{{ r.now }}위</strong></td>
+        <td class="mono {{ 'good' if r.shift > 0 else ('bad' if r.shift < 0 else 'muted') }}">
+          {% if r.shift > 0 %}▲{{ r.shift }}{% elif r.shift < 0 %}▼{{ -r.shift }}{% else %}—{% endif %}
+        </td>
+        <td class="mono {{ 'good' if r.m3 > 0 else 'bad' }}">{{ '%+.2f'|format(r.m3) }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section class="card" style="margin-top:16px">
+  <h2 style="margin:0 0 8px">이 지도가 말하지 않는 것</h2>
+  <p class="muted" style="margin:0 0 6px">
+    가격 상대강도는 <strong>실제 자금유입이 아니라 그 대리지표</strong>입니다.
+    사모대출에 1조 달러가 들어가도 관련 상장 자산 가격은 안 움직일 수 있습니다.
+    진짜 펀드플로우(ETF 설정·환매, EPFR)는 유료라 이 앱에서 쓸 수 없습니다.
+  </p>
+  <p class="muted" style="margin:0">
+    <strong>관측 불가 영역</strong> — 사모 금융(Private Credit·PE·VC)은 비공개·분기지연·유료라,
+    토큰증권(STO)·미술품·IP는 공개 시계열이 없어 이 지도에 담기지 않습니다.
+  </p>
+</section>
+
+{% endblock %}

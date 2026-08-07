@@ -11,7 +11,9 @@ from fastapi.templating import Jinja2Templates
 from . import presenter
 from . import pipeline
 from . import repository as repo
+from .analysis import flows as flows_mod
 from .analysis import hyundai as hyundai_mod
+from .analysis import shinhan as shinhan_mod
 from .analysis import llm as llm_mod
 from .analysis import portfolio as portfolio_mod
 from .analysis import regime as regime_mod
@@ -107,6 +109,42 @@ def api_hyundai_analysis():
     })
 
 
+@app.get("/shinhan", response_class=HTMLResponse)
+def shinhan_page(request: Request):
+    data = shinhan_mod.get_data()
+    analysis = shinhan_mod.get_cached_analysis()  # 캐시만 — LLM 차단 없음
+    if not analysis:
+        shinhan_mod.trigger_analysis_async(data)   # 백그라운드 생성 시작
+    return templates.TemplateResponse("shinhan.html", {
+        "request": request,
+        "d": data,
+        "analysis": analysis,
+        "analysis_generating": analysis is None,
+        "title": "신한금융지주 전용 분석",
+    })
+
+
+@app.get("/api/shinhan/analysis")
+def api_shinhan_analysis():
+    """분석 완료 여부 폴링 — 프론트엔드 자동새로고침용."""
+    cached = shinhan_mod.get_cached_analysis()
+    return JSONResponse({
+        "ready": cached is not None,
+        "generating": shinhan_mod._analysis_generating.is_set(),
+        "data": cached,
+    })
+
+
+@app.get("/flows", response_class=HTMLResponse)
+def flows_page(request: Request):
+    """자금 회전지도 — 1단계 검증용 별도 페이지(2단계에서 대시보드로 이관)."""
+    return templates.TemplateResponse("flows.html", {
+        "request": request,
+        "f": flows_mod.build_flows(),
+        "title": "자금 회전지도",
+    })
+
+
 @app.get("/history", response_class=HTMLResponse)
 def history(request: Request):
     return templates.TemplateResponse("history.html", {
@@ -176,6 +214,11 @@ def api_status():
 @app.get("/api/hyundai")
 def api_hyundai():
     return JSONResponse(hyundai_mod.get_data())
+
+
+@app.get("/api/shinhan")
+def api_shinhan():
+    return JSONResponse(shinhan_mod.get_data())
 
 
 @app.post("/api/collect")

@@ -19,13 +19,17 @@ from __future__ import annotations
 import json
 import math
 import sqlite3
+import sys
 from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / "data" / "economic.db"
 FIXTURE = ROOT / "scripts" / "fixtures" / "flows_history.json"
-POINTS = 1300          # flows._POINTS 와 같아야 한다
+sys.path.insert(0, str(ROOT))
+from app.config import settings  # noqa: E402  (flows 는 import 하지 않는다 — 독립성 유지)
+
+POINTS = settings.history_points   # flows._POINTS 와 같은 출처를 읽어 자동 동기
 
 # (지표키, 라벨, 환율키, 연산) — flows._ASSETS / _REGIONS 와 같은 구성
 ASSET = [("sp500", "S&P500", "", ""), ("nasdaq", "나스닥", "", ""),

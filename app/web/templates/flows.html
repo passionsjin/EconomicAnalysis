@@ -81,8 +81,8 @@
       <i></i>
       <span class="muted" id="flow-risk-hi">방어</span>
     </div>
+    {% endif %}
   </div>
-  {% endif %}
   <p class="muted rrg-howto">
     큰 점이 현재 위치, 이어진 꼬리가 최근 8주 이동경로입니다.
     자금은 보통 <strong>개선 → 주도 → 약화 → 지체</strong> 순으로 시계방향으로 돕니다.
@@ -94,7 +94,7 @@
         <th>상대강도<br><span class="muted">3개월 위치</span></th>
         <th>상대모멘텀<br><span class="muted">1개월 방향</span></th>
         <th>사분면</th><th>8주 전</th>
-        {% if m.rows and m.rows[0].risk is not none %}<th>위험성격</th>{% endif %}
+        {% if show_risk_legend %}<th>위험성격</th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -108,8 +108,8 @@
           <span class="pill {{ 'good' if r.quadrant in ('주도','개선') else 'bad' }}">{{ r.quadrant }}</span>
         </td>
         <td class="muted">{{ r.quadrant_prev }}{% if r.quadrant != r.quadrant_prev %} →{% endif %}</td>
-        {% if r.risk is not none %}
-        <td class="mono {{ 'bad' if r.risk < 0 else 'good' }}">{{ '%+.2f'|format(r.risk) }}%</td>
+        {% if show_risk_legend %}
+        <td class="mono {{ 'bad' if (r.risk or 0) < 0 else 'good' }}">{{ '%+.2f'|format(r.risk or 0) }}%</td>
         {% endif %}
       </tr>
       {% endfor %}
@@ -138,7 +138,8 @@
         <td class="mono {{ 'good' if r.shift > 0 else ('bad' if r.shift < 0 else 'muted') }}">
           {% if r.shift > 0 %}▲{{ r.shift }}{% elif r.shift < 0 %}▼{{ -r.shift }}{% else %}—{% endif %}
         </td>
-        <td class="mono {{ 'good' if r.m3 > 0 else 'bad' }}">{{ '%+.2f'|format(r.m3) }}%</td>
+        {# 통화는 오르는 게 이득인지 손해인지 보유 구성에 따라 갈린다 — 색으로 단정하지 않는다 #}
+        <td class="mono {{ 'muted' if r.key in ('usdkrw', 'dxy') else ('good' if r.m3 > 0 else 'bad') }}">{{ '%+.2f'|format(r.m3) }}%</td>
       </tr>
       {% endfor %}
     </tbody>

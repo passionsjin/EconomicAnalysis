@@ -18,6 +18,7 @@ import time
 from datetime import date, datetime, timedelta, timezone
 
 from .. import repository as repo
+from ..config import settings
 from . import llm
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ _W_RS = 63        # 상대강도 정규화 창(3개월)
 _W_MOM = 21       # 상대모멘텀 정규화 창(1개월)
 _TAIL_STEP = 5    # 꼬리 샘플 간격(거래일 ≈ 1주)
 _TAIL_N = 8       # 꼬리 점 개수(8주)
-_POINTS = 1300    # DB 에서 끌어올 이력 길이
+_POINTS = settings.history_points   # DB 에서 끌어올 이력 길이(보존 상한과 동일)
 _MIN_DAYS = 130   # RRG 최소 요건(63 + 21 + 꼬리 여유)
 
 # (지표키, 표시라벨, 자산군, 환산 환율키, 환산 연산) — 환산은 USD 기준 통일용
@@ -56,7 +57,8 @@ _REGIONS: list[tuple[str, str, str, str, str]] = [
 GROUP_LABEL = {"equity": "주식", "bond": "채권", "real": "실물",
                "crypto": "코인", "fx": "통화", "region": "지역"}
 
-_QUADRANTS = ("주도", "약화", "개선", "지체")
+# 사분면 값 집합 — verify_flows.py 가 이걸 import 해 대조한다(리터럴 중복 방지)
+QUADRANTS = ("주도", "약화", "개선", "지체")
 
 _VIX_KEY = "vix"
 _VIX_SHOCK_PCT = 0.10     # VIX 상위 10% 급등일을 '위험 국면'으로 본다
@@ -93,19 +95,27 @@ def _usd_prices(spec, S, dates) -> dict[str, list[float]]:
     return out
 
 
-def _rrg(spec) -> dict | None:
-    """자산 목록 → RRG 좌표 묶음. 데이터 부족·결측 시 None."""
+def _rrg(spec, with_risk: bool = True) -> dict | None:
+    """자산 목록 → RRG 좌표 묶음. 데이터 부족·결측 시 None.
+
+    with_risk=False 면 위험 성격(VIX 민감도)을 계산하지 않는다 — 지역 지도는 그 채널을
+    쓰지 않으므로 계산도, VIX 조회도 낭비다.
+    """
     keys = {k for k, _, _, _, _ in spec}
     keys |= {f for _, _, _, f, _ in spec if f}
     raw = repo.get_series_batch(sorted(keys), _POINTS)
     S = {k: {p["date"]: p["value"] for p in raw.get(k, []) if p.get("value") is not None}
          for k in keys}
-    if any(not S[k] for k in keys):
+    missing = sorted(k for k in keys if not S[k])
+    if missing:
+        # 어느 키가 없는지 남긴다 — 화면은 '데이터 부족'만 말할 수 있어 진단이 안 된다
+        logger.info("회전지도 계산 불가 — 미수집 지표: %s", ", ".join(missing))
         return None
 
     # 공통 거래일 교집합에서만 계산(휴장일·주말 불일치 제거)
     dates = [d for d in sorted(S[spec[0][0]]) if all(S[k].get(d) is not None for k in keys)]
     if len(dates) < _MIN_DAYS:
+        logger.info("회전지도 계산 불가 — 공통 거래일 %d일 (최소 %d일 필요)", len(dates), _MIN_DAYS)
         return None
 
     price = _usd_prices(spec, S, dates)
@@ -147,7 +157,7 @@ def _rrg(spec) -> dict | None:
         })
     if not rows:
         return None
-    risk = _risk_scores(spec, S, dates)
+    risk = _risk_scores(spec, S, dates) if with_risk else {}
     for r in rows:
         r["risk"] = risk.get(r["key"])
     rows.sort(key=lambda r: -r["x"])
@@ -189,8 +199,11 @@ def asset_map() -> dict | None:
 
 
 def region_map() -> dict | None:
-    """지도 2 — 지역 회전(벤치마크 = 글로벌 주식 동일가중)."""
-    return _rrg(_REGIONS)
+    """지도 2 — 지역 회전(벤치마크 = 글로벌 주식 동일가중).
+
+    위험 성격은 지도 1 전용 채널이라(스펙 4.6절) 계산하지 않는다.
+    """
+    return _rrg(_REGIONS, with_risk=False)
 
 
 # 순위표 대상 — 지도에 없는 자산까지 넓게 본다(지도는 좁게, 표는 넓게).

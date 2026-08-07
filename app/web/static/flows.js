@@ -18,6 +18,7 @@ const FLOW_SHAPE = {
 const FLOW_ATTACK = [230, 103, 103];   // #e66767 공격
 const FLOW_MID    = [138, 148, 166];   // #8a94a6 중립(앱 --muted)
 const FLOW_DEFEND = [57, 135, 229];    // #3987e5 방어
+const FLOW_RISK_DOMAIN = 2.0;          // 색 스케일 양끝(%). 고정이라 날짜 간 색 비교가 된다
 
 /* 지역 지도는 위험성격을 쓰지 않으므로 색 채널이 비어 있다 — 정체성에 쓴다.
    6개 궤적이 전부 같은 색이면 교차하는 순간 어느 꼬리가 누구 것인지 알 수 없고,
@@ -45,8 +46,9 @@ const FLOW_REGION_SHAPE = {
 };
 
 /* risk(VIX 급등일 평균수익률 %)를 발산 스케일에 태운다.
-   domain 은 데이터의 최대 절대값으로 잡아 0 기준 대칭을 유지한다 —
-   양팔을 각자 최대값으로 늘이면 약한 방어 신호가 강해 보여 오해를 부른다. */
+   domain 은 고정값이다. 데이터의 최대 절대값으로 잡으면 가장 극단적인 자산 하나가
+   바뀔 때마다 전체 팔레트가 재조정돼, 어제 화면과 오늘 화면의 색을 비교할 수 없다 —
+   연속 스케일을 택한 이유(깜빡임 차단)를 스스로 무너뜨리는 셈이다. */
 function flowRiskRgb(risk, domain) {
   if (risk === null || risk === undefined) return FLOW_MID.slice();
   const t = Math.max(-1, Math.min(1, risk / (domain || 1)));
@@ -79,8 +81,7 @@ function flowDrawRRG(canvasId, map, opts) {
   const ink = flowCssVar('--txt', '#e6ebf2');
   const muted = flowCssVar('--muted', '#8a94a6');
 
-  const risks = map.rows.map((r) => r.risk).filter((v) => v !== null && v !== undefined);
-  const domain = risks.length ? Math.max(...risks.map(Math.abs)) : 1;
+  const domain = FLOW_RISK_DOMAIN;
 
   const surface = flowCssVar('--card', '#151b26');
   const isLast = (c) => c.dataIndex === c.dataset.data.length - 1;

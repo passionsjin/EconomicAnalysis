@@ -95,7 +95,7 @@ def check(name: str, m: dict | None, golden: dict, days: int) -> None:
     for r in m["rows"]:
         if not r["tail"]:
             failures.append(f"[{name}] {r['key']} 꼬리 비어 있음")
-        if r["quadrant"] not in ("주도", "약화", "개선", "지체"):
+        if r["quadrant"] not in flows.QUADRANTS:
             failures.append(f"[{name}] {r['key']} 사분면 값 이상: {r['quadrant']}")
 
 

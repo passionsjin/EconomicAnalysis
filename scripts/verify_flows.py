@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -15,44 +16,58 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.analysis import flows                     # noqa: E402
 
+# ── 검증은 동결 픽스쳐로 한다 ──
+# 살아 있는 DB 를 읽으면 장중 진행형 마지막 봉이 확정될 때마다 좌표가 이동해
+# 검사가 무의미해진다(2026-08-06 실제 발생). repo 접근만 픽스쳐로 갈아끼운다.
+_FIX = json.loads((Path(__file__).resolve().parent / "fixtures" / "flows_history.json")
+                  .read_text(encoding="utf-8"))
+
+
+def _fixture_batch(keys, points: int = 60):
+    return {k: [{"date": d, "value": v} for d, v in _FIX["series"].get(k, [])][-points:]
+            for k in keys}
+
+
+flows.repo.get_series_batch = _fixture_batch
+
 TOL = 0.02          # 부동소수 오차 허용치
 
-# 스펙 문서에서 나온 독립 오라클 — tlt 를 뺀 9종. 구현 출력으로 덮어쓰지 말 것.
-# 이 값이 깨지면 _rrg 의 계산이 바뀐 것이다.
+# 독립 오라클 — scripts/gen_flows_golden.py 가 flows.py 를 import 하지 않고
+# 스펙 4.3절 공식을 직접 구현해 산출한 값. 동결 픽스쳐 기준이라 재현 가능하다.
+# flows.py 의 출력으로 덮어쓰지 말 것 — 두 독립 구현의 일치가 이 검사의 전부다.
 GOLDEN_ASSET_9 = {
-    "copper": (101.93, 100.62),
-    "sp500":  (101.48, 99.48),
-    "nasdaq": (101.43, 100.49),
-    "gold":   (100.53, 102.99),
-    "hyg":    (100.39, 98.88),
-    "btc":    (99.48, 100.15),
-    "kospi":  (99.43, 99.54),
-    "usdkrw": (99.23, 97.38),
-    "wti":    (99.01, 99.33),
+    "sp500": (101.44, 99.4),
+    "nasdaq": (101.25, 100.13),
+    "kospi": (99.48, 99.61),
+    "hyg": (100.49, 99.1),
+    "gold": (100.22, 102.5),
+    "copper": (102.02, 100.85),
+    "wti": (99.04, 99.37),
+    "btc": (99.55, 100.35),
+    "usdkrw": (99.27, 97.41),
 }
-# 회귀 잠금 — tlt 포함 10종. Task 2 구현 시점 출력을 고정한 값이라
-# 독립 검증력은 없다(계산 검증은 GOLDEN_ASSET_9 담당). 좌표가 흔들리면 여기서 잡힌다.
+# 10종 회귀 잠금 — 위와 같은 독립 산출.
 GOLDEN_ASSET = {
-    "copper": (101.97, 100.72),
-    "sp500":  (101.53, 99.57),
-    "nasdaq": (101.47, 100.62),
-    "gold":   (100.53, 103.04),
-    "hyg":    (100.42, 98.88),
-    "tlt":    (99.80, 98.62),
-    "btc":    (99.49, 100.19),
-    "kospi":  (99.44, 99.56),
-    "usdkrw": (99.21, 97.38),
-    "wti":    (99.02, 99.35),
+    "sp500": (101.49, 99.48),
+    "nasdaq": (101.29, 100.25),
+    "kospi": (99.48, 99.62),
+    "tlt": (99.89, 98.82),
+    "hyg": (100.52, 99.1),
+    "gold": (100.22, 102.56),
+    "copper": (102.06, 100.93),
+    "wti": (99.05, 99.39),
+    "btc": (99.56, 100.39),
+    "usdkrw": (99.25, 97.41),
 }
 GOLDEN_REGION = {
-    "sp500":    (101.30, 100.19),
-    "eustoxx":  (101.05, 100.61),
-    "nikkei":   (101.00, 100.00),
-    "hangseng": (100.23, 100.63),
-    "kospi":    (99.16, 99.34),
-    "shanghai": (98.69, 98.64),
+    "sp500": (101.16, 100.02),
+    "kospi": (99.19, 99.38),
+    "eustoxx": (101.06, 100.62),
+    "shanghai": (98.66, 98.59),
+    "hangseng": (100.24, 100.64),
+    "nikkei": (101.01, 100.02),
 }
-GOLDEN_DAYS = {"자산군9": 744, "자산군": 744, "지역": 915}
+GOLDEN_DAYS = {"자산군9": 744, "자산군": 744, "지역": 914}
 
 failures: list[str] = []
 
@@ -91,6 +106,43 @@ print()
 check("자산군", flows.asset_map(), GOLDEN_ASSET, GOLDEN_DAYS["자산군"])
 print()
 check("지역", flows.region_map(), GOLDEN_REGION, GOLDEN_DAYS["지역"])
+
+# ── Task 3 요소 검증 ──
+bundle = flows.build_flows()
+print()
+print(f"[묶음] asset={'있음' if bundle['asset'] else '없음'} "
+      f"region={'있음' if bundle['region'] else '없음'} "
+      f"ranks={len(bundle['ranks'])}개")
+
+if bundle["asset"]:
+    missing = [r["key"] for r in bundle["asset"]["rows"] if r.get("risk") is None]
+    if missing:
+        failures.append(f"[위험성격] risk 누락: {missing}")
+    else:
+        for r in sorted(bundle["asset"]["rows"], key=lambda r: r["risk"]):
+            print(f"   risk {r['key']:9s} {r['risk']:+7.3f}%")
+        # 방향 상식 검증: 비트코인은 공격(음수), 원/달러는 방어(양수)여야 한다
+        by = {r["key"]: r["risk"] for r in bundle["asset"]["rows"]}
+        if by.get("btc", 0) >= 0:
+            failures.append(f"[위험성격] btc 가 공격(음수)이 아님: {by.get('btc')}")
+        if by.get("usdkrw", 0) <= 0:
+            failures.append(f"[위험성격] usdkrw 가 방어(양수)가 아님: {by.get('usdkrw')}")
+
+if not bundle["ranks"]:
+    failures.append("[순위표] 비어 있음")
+else:
+    for r in bundle["ranks"][:5]:
+        print(f"   rank {r['label']:10s} {r['prev']:2d}위 -> {r['now']:2d}위 ({r['shift']:+d})")
+    shifts = {r["key"]: r["now"] for r in bundle["ranks"]}
+    if len(shifts) != len(bundle["ranks"]):
+        failures.append("[순위표] key 중복")
+    if sorted(r["now"] for r in bundle["ranks"]) != list(range(1, len(bundle["ranks"]) + 1)):
+        failures.append("[순위표] now 순위가 1..N 연속이 아님")
+
+if not bundle["summary"] or not bundle["summary"].get("text"):
+    failures.append("[요약] text 없음")
+else:
+    print(f"   요약: {bundle['summary']['text']}")
 
 print()
 if failures:

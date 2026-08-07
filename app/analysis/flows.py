@@ -50,6 +50,9 @@ GROUP_LABEL = {"equity": "주식", "bond": "채권", "real": "실물",
 
 _QUADRANTS = ("주도", "약화", "개선", "지체")
 
+_VIX_KEY = "vix"
+_VIX_SHOCK_PCT = 0.10     # VIX 상위 10% 급등일을 '위험 국면'으로 본다
+
 
 def _quadrant(x: float, y: float) -> str:
     """RRG 사분면. 자금은 통상 시계방향으로 순환: 개선→주도→약화→지체."""
@@ -136,8 +139,40 @@ def _rrg(spec) -> dict | None:
         })
     if not rows:
         return None
+    risk = _risk_scores(spec, S, dates)
+    for r in rows:
+        r["risk"] = risk.get(r["key"])
     rows.sort(key=lambda r: -r["x"])
     return {"as_of": dates[last], "days": len(dates), "rows": rows}
+
+
+def _log_returns(vals: list[float]) -> list[float]:
+    return [math.log(b / a) if a > 0 and b > 0 else 0.0 for a, b in zip(vals, vals[1:])]
+
+
+def _risk_scores(spec, S, dates) -> dict[str, float]:
+    """위험 성격 — VIX 급등일(상위 10%) 평균 수익률 %. 음수=공격, 양수=방어.
+
+    임계선으로 3분류하지 않고 연속값 그대로 쓴다(스펙 4.4절):
+    경계 자산이 룩백에 따라 색이 깜빡이는 것을 원천 차단한다.
+    """
+    vix_raw = repo.get_series_batch([_VIX_KEY], _POINTS).get(_VIX_KEY) or []
+    vix = {p["date"]: p["value"] for p in vix_raw if p.get("value") is not None}
+    common = [d for d in dates if d in vix]
+    if len(common) < _W_RS:
+        return {}
+    vr = _log_returns([vix[d] for d in common])
+    k = max(1, int(len(vr) * _VIX_SHOCK_PCT))
+    shock = sorted(range(len(vr)), key=lambda i: -vr[i])[:k]
+
+    price = _usd_prices(spec, S, common)
+    out: dict[str, float] = {}
+    for key, _, _, _, _ in spec:
+        r = _log_returns(price[key])
+        vals = [r[i] for i in shock if i < len(r)]
+        if vals:
+            out[key] = round(sum(vals) / len(vals) * 100.0, 3)
+    return out
 
 
 def asset_map() -> dict | None:
@@ -148,3 +183,84 @@ def asset_map() -> dict | None:
 def region_map() -> dict | None:
     """지도 2 — 지역 회전(벤치마크 = 글로벌 주식 동일가중)."""
     return _rrg(_REGIONS)
+
+
+# 순위표 대상 — 지도에 없는 자산까지 넓게 본다(지도는 좁게, 표는 넓게).
+_RANK_KEYS: list[tuple[str, str]] = [
+    ("sp500", "S&P500"), ("nasdaq", "나스닥"), ("kospi", "코스피"),
+    ("eustoxx", "유럽"), ("nikkei", "일본"), ("hangseng", "홍콩"), ("shanghai", "중국본토"),
+    ("tlt", "미 장기국채"), ("hyg", "하이일드채"), ("lqd", "투자등급채"),
+    ("gold", "금"), ("silver", "은"), ("copper", "구리"), ("wti", "WTI"),
+    ("btc", "비트코인"), ("eth", "이더리움"), ("usdkrw", "원/달러"), ("dxy", "달러인덱스"),
+]
+_RANK_LOOKBACK = 63       # 3개월 모멘텀
+_MIN_RANK_DAYS = _RANK_LOOKBACK * 2 + 5
+
+
+def rank_shift() -> list[dict]:
+    """3개월 모멘텀 순위 — 현재와 63거래일 전을 비교해 ▲▼ 를 낸다.
+
+    각 자산의 자기 이력만 쓰므로(교집합 불필요) 지도보다 대상을 넓게 잡을 수 있다.
+    """
+    keys = [k for k, _ in _RANK_KEYS]
+    raw = repo.get_series_batch(keys, _POINTS)
+    now_m, prev_m = {}, {}
+    for key, _ in _RANK_KEYS:
+        vals = [p["value"] for p in raw.get(key, []) if p.get("value") is not None]
+        if len(vals) < _MIN_RANK_DAYS:
+            continue
+        base_now = vals[-1 - _RANK_LOOKBACK]
+        base_prev = vals[-1 - _RANK_LOOKBACK * 2]
+        if not base_now or not base_prev:
+            continue
+        now_m[key] = (vals[-1] / base_now - 1.0) * 100.0
+        prev_m[key] = (vals[-1 - _RANK_LOOKBACK] / base_prev - 1.0) * 100.0
+    if not now_m:
+        return []
+
+    def ranked(d: dict[str, float]) -> dict[str, int]:
+        order = sorted(d, key=lambda k: -d[k])
+        return {k: i + 1 for i, k in enumerate(order)}
+
+    rn, rp = ranked(now_m), ranked(prev_m)
+    label = dict(_RANK_KEYS)
+    rows = [{"key": k, "label": label[k], "now": rn[k], "prev": rp[k],
+             "shift": rp[k] - rn[k], "m3": round(now_m[k], 2)} for k in rn]
+    rows.sort(key=lambda r: r["now"])
+    return rows
+
+
+def _summary(m: dict | None) -> dict | None:
+    """사분면 진입/이탈을 규칙으로 문장화. LLM 미사용(브리핑 지연 없음)."""
+    if not m:
+        return None
+    into = [r["label"] for r in m["rows"]
+            if r["quadrant"] == "주도" and r["quadrant_prev"] != "주도"]
+    out = [r["label"] for r in m["rows"]
+           if r["quadrant"] in ("약화", "지체") and r["quadrant_prev"] in ("주도", "개선")]
+    if into and out:
+        text = f"지난 8주 {' · '.join(out)}에서 {' · '.join(into)}(으)로 자금이 이동했습니다."
+    elif into:
+        text = f"지난 8주 {' · '.join(into)}(이)가 새로 주도권을 잡았습니다."
+    elif out:
+        text = f"지난 8주 {' · '.join(out)}에서 자금이 빠졌습니다."
+    else:
+        text = "지난 8주 사분면 이동이 없었습니다 — 기존 흐름이 유지되고 있습니다."
+    return {"into": into, "out": out, "text": text}
+
+
+def build_flows() -> dict:
+    """페이지용 묶음. 개별 실패는 None/빈 리스트로 격리해 전체를 무력화하지 않는다."""
+    def safe(fn, fallback):
+        try:
+            return fn()
+        except Exception:  # noqa: BLE001
+            return fallback
+
+    asset = safe(asset_map, None)
+    return {
+        "asset": asset,
+        "region": safe(region_map, None),
+        "ranks": safe(rank_shift, []),
+        "summary": _summary(asset),
+    }

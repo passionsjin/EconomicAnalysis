@@ -163,8 +163,8 @@ def _momentum_block(quotes: dict[str, Quote]) -> str:
     rows = []
     for k in _MTF_KEYS:
         q, ind = quotes.get(k), INDICATOR_BY_KEY.get(k)
-        if not q or not q.ok or not q.history:
-            continue
+        if not q or not ind or not q.ok or not q.history:
+            continue   # ind 가드: 레지스트리에서 빠진 키가 _MTF_KEYS 에 남아도 죽지 않게
         m, u, dp = _momentum_of(ind, q)
         if not m:
             continue

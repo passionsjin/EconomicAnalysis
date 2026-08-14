@@ -1,0 +1,832 @@
+{% extends "base.html" %}
+{% block content %}
+
+{# ─── 상단 네비 ─── #}
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">🏦</span>
+    <div>
+      <h1>신한금융지주 전용 분석</h1>
+      <div class="sub">
+        {% if d.as_of %}
+          기준 <time class="kst" data-utc="{{ d.as_of }}">—</time>
+        {% else %}데이터 로드 중{% endif %}
+        <span class="pill neutral" style="font-size:10px">055550.KS</span>
+      </div>
+    </div>
+  </div>
+  <div class="actions">
+    <a class="btn ghost" href="/">← 메인 대시보드</a>
+    <button class="btn primary" onclick="location.reload()">⟳ 새로고침</button>
+  </div>
+</header>
+
+{% if not d.ok %}
+<section class="card" style="margin-top:24px;text-align:center;padding:40px">
+  <p class="bad" style="font-size:16px">{{ d.error or '데이터 로드 실패' }}</p>
+  <p class="muted">잠시 후 다시 시도하거나 서버 로그를 확인하세요.</p>
+  <a href="/shinhan" class="btn primary" style="display:inline-block;margin-top:14px">재시도</a>
+</section>
+{% else %}
+
+{# ─── ① 주가 헤더 ─── #}
+{% set px = d.price %}
+<section class="hmc-header card">
+  <div class="hmc-header-main">
+    <div class="hmc-price-block">
+      <div class="hmc-company">신한금융지주 <span class="muted" style="font-size:13px">055550.KS · KRW</span></div>
+      <div class="hmc-price {{ px.tone }}">{{ px.fmt.current }}</div>
+      <div class="hmc-change {{ px.tone }}">
+        <span class="hmc-chg-label">전일 대비</span>
+        <span>{{ px.fmt.change_abs }}</span>
+        <span class="hmc-chg-pct">{{ px.fmt.change_pct }}</span>
+        {% if px.yr_ret is not none %}
+        <span class="hmc-chg-divider">│</span>
+        <span class="hmc-chg-label">1년</span>
+        <span class="{{ px.yr_tone }}">{{ px.fmt.yr_ret }}</span>
+        {% endif %}
+      </div>
+      <div class="hmc-stats-row">
+        <span class="hmc-stat"><i>시총</i> {{ px.fmt.market_cap }}</span>
+        <span class="hmc-stat"><i>거래량</i> {{ px.fmt.volume }}</span>
+        {% if px.day_high and px.day_low %}
+        <span class="hmc-stat"><i>일중</i> {{ px.day_low|int|format_number ~ ' ~ ' ~ px.day_high|int|format_number }}</span>
+        {% endif %}
+      </div>
+      <div class="hmc-52w">
+        <span class="muted" style="font-size:11px">52주 범위</span>
+        <span class="bad">저 {{ px.fmt.week52_low }}</span>
+        <span class="muted">—</span>
+        <span class="good">고 {{ px.fmt.week52_high }}</span>
+        {% if px.dist_high_pct is not none %}
+        <span class="hmc-dist {{ 'good' if px.dist_high_pct > -5 else 'warn' if px.dist_high_pct > -20 else 'muted' }}"
+              title="52주 고점 대비 거리">고점 대비 {{ '%+.1f'|format(px.dist_high_pct) }}%</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="hmc-price-chart-wrap">
+      <canvas id="shbPriceChart"></canvas>
+    </div>
+  </div>
+</section>
+
+{# ─── ② 종합 빠른 판단 ─── #}
+{% set qv = d.quick_view %}
+<div class="hmc-quickview">
+  <div class="hmc-qv-item {{ qv.price_tone }}">
+    <span class="hmc-qv-lbl">주가 수준 (PBR 기준)</span>
+    <span class="hmc-qv-val">{{ qv.price_level }}</span>
+  </div>
+  <div class="hmc-qv-item {{ qv.momentum_tone }}">
+    <span class="hmc-qv-lbl">실적 모멘텀</span>
+    <span class="hmc-qv-val">{{ qv.momentum }}</span>
+  </div>
+  <div class="hmc-qv-item {{ qv.plan_tone }}">
+    <span class="hmc-qv-lbl">전략 이행</span>
+    <span class="hmc-qv-val">{{ qv.plan_status }}</span>
+  </div>
+</div>
+
+{# ─── ③ LLM 종합 분석 ─── #}
+{% if analysis and analysis.ok %}
+<section class="card hmc-analysis">
+  <div class="hmc-sec-head">🤖 AI 종합 분석 <span class="muted" style="font-size:11px">{{ analysis.model or '' }} · <time class="kst rel" data-utc="{{ analysis.ts_utc or '' }}">—</time></span></div>
+  <div class="hmc-analysis-headline">{{ analysis.headline }}</div>
+  <p class="hmc-analysis-summary">{{ analysis.summary }}</p>
+  <details class="hmc-analysis-more">
+    <summary>📄 상세 분석 펼치기</summary>
+    <div class="brief-body markdown" id="shb-body-md"></div>
+  </details>
+</section>
+{% elif analysis and not analysis.ok %}
+<section class="card hmc-analysis" style="border-left-color:var(--bad)">
+  <div class="hmc-sec-head">🤖 AI 종합 분석</div>
+  <p class="muted">분석 생성 실패: {{ analysis.error }}</p>
+  <button class="btn ghost" style="margin-top:8px" onclick="location.reload()">↺ 재시도</button>
+</section>
+{% elif analysis_generating %}
+<section class="card hmc-analysis" id="shb-analysis-loading" style="border-left-color:var(--warn)">
+  <div class="hmc-sec-head">🤖 AI 종합 분석 <span class="muted" style="font-size:11px">생성 중...</span></div>
+  <p class="muted" style="font-size:13px">LLM이 신한지주 데이터를 분석하고 있습니다. 통상 60~90초 소요됩니다.</p>
+  <div class="hmc-analysis-progress"><div class="hmc-analysis-bar"></div></div>
+  <p class="muted" style="font-size:11px;margin-top:8px">완료 시 자동으로 페이지가 업데이트됩니다.</p>
+</section>
+{% endif %}
+
+{# ─── ④ 밸류에이션 (은행: PBR·배당 우선) ─── #}
+{% set v = d.valuation %}
+{% set vf = v.fmt %}
+<section class="card">
+  <div class="hmc-sec-head">📊 밸류에이션 — 주가 대비 가치 평가 <span class="muted" style="font-size:11px">은행 지주는 PBR·배당수익률이 핵심</span></div>
+
+  <div class="hmc-val-grid">
+    {# PBR (은행 핵심 지표 — 맨 앞) #}
+    <div class="hmc-val-card {{ 'good' if v.vs_pbr == '할인' else 'warn' if v.vs_pbr == '프리미엄' else '' }}">
+      <div class="hmc-val-name">PBR <small>주가순자산비율</small></div>
+      <div class="hmc-val-num">{{ vf.pbr }}</div>
+      {% if v.pbr is not none %}
+      <div class="hmc-val-sub">국내 지주 중앙값 {{ d.sector_pbr.get('섹터 중앙값', '—') }}x →
+        <b class="{{ 'good' if v.vs_pbr == '할인' else 'warn' if v.vs_pbr == '프리미엄' else 'neutral' }}">{{ v.vs_pbr or '—' }}</b>
+      </div>
+      {% endif %}
+      {% if v.book_value is not none %}
+      <div class="hmc-val-hint">장부가 {{ vf.book_value }}/주</div>
+      {% endif %}
+    </div>
+
+    {# 배당수익률 #}
+    <div class="hmc-val-card {{ 'good' if (v.div_yield or 0) > 3.5 else '' }}">
+      <div class="hmc-val-name">배당수익률</div>
+      <div class="hmc-val-num {{ 'good' if (v.div_yield or 0) > 3.5 else '' }}">{{ vf.div_yield }}</div>
+      {% if v.div_rate is not none %}
+      <div class="hmc-val-hint">₩{{ v.div_rate|int|format_number }}/주</div>
+      {% endif %}
+      <div class="hmc-val-sub">은행주 투자 매력의 핵심</div>
+    </div>
+
+    {# PER Trailing #}
+    <div class="hmc-val-card {{ 'good' if v.vs_per == '할인' else 'warn' if v.vs_per == '프리미엄' else '' }}">
+      <div class="hmc-val-name">PER <small>주가이익비율</small></div>
+      <div class="hmc-val-num">{{ vf.per_trailing }}</div>
+      {% if v.per_trailing is not none %}
+      <div class="hmc-val-sub">국내 지주 중앙값 {{ d.sector_pe.get('섹터 중앙값', '—') }}x →
+        <b class="{{ 'good' if v.vs_per == '할인' else 'warn' if v.vs_per == '프리미엄' else 'neutral' }}">{{ v.vs_per or '—' }}</b>
+      </div>
+      {% endif %}
+      {% if v.per_forward is not none %}
+      <div class="hmc-val-hint">Forward {{ vf.per_forward }}</div>
+      {% endif %}
+    </div>
+
+    {# Beta #}
+    <div class="hmc-val-card">
+      <div class="hmc-val-name">베타 <small>시장 민감도</small></div>
+      <div class="hmc-val-num">{{ v.beta if v.beta is not none else '—' }}</div>
+      {% if v.beta is not none %}
+      <div class="hmc-val-sub">{{ '시장보다 변동 큼' if v.beta > 1.2 else '시장 유사' if v.beta > 0.8 else '방어적' }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# 국내+글로벌 은행 PBR 비교 바차트 #}
+  {% if v.pbr is not none %}
+  <div class="hmc-sector-compare">
+    <div class="hmc-sec-sub">은행 섹터 PBR 비교 <small class="muted">(국내 4대 금융지주 + 글로벌 은행)</small></div>
+    <div class="hmc-peer-bars" id="peerBars"></div>
+  </div>
+  {% endif %}
+
+  {# PBR < 1 신호 배너 #}
+  {% if v.book_value is not none and v.pbr is not none and v.pbr < 1.0 %}
+  <div class="hmc-value-banner good">
+    <span class="hmc-banner-icon">📗</span>
+    <div>
+      <b>장부가 대비 할인 거래</b> — 현재가 {{ px.fmt.current }}는 주당순자산(BPS) {{ vf.book_value }}보다
+      <b>{{ '%.0f'|format((1 - v.pbr) * 100) }}% 낮음</b>.
+      대부분의 은행주가 장부가 이하로 거래되며, 자기자본이익률(ROE)·주주환원율 개선이 PBR 재평가의 열쇠임.
+    </div>
+  </div>
+  {% endif %}
+
+  {# 적정주가 테이블 — PBR 시나리오 (은행 핵심) #}
+  {% if d.implied_pbr %}
+  <div class="hmc-implied-wrap">
+    <div class="hmc-sec-sub" style="margin-bottom:10px">PBR 시나리오별 적정주가 <small class="muted">(BPS {{ vf.book_value }}/주 기준)</small></div>
+    <table class="hmc-implied-table">
+      <thead><tr><th>시나리오</th><th>목표 PBR</th><th>적정주가</th><th>현재가 대비</th></tr></thead>
+      <tbody>
+      {% for row in d.implied_pbr %}
+      <tr {{ 'class="hmc-implied-current"' if row.is_current else '' }}>
+        <td>{{ row.label }}</td>
+        <td class="num">{{ row.pbr }}x</td>
+        <td class="num"><b>{{ row.fmt_implied }}</b></td>
+        <td class="num {{ row.tone }}">{{ row.fmt_gap }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p class="hmc-implied-note">은행주는 PBR이 밸류에이션의 핵심 축임. 밸류업(총주주환원율 상향·ROE 개선)이 진행되면 장부가 대비 할인 폭이 축소되며 PBR 리레이팅 여지가 생김.</p>
+  </div>
+  {% endif %}
+
+  {# 섹터 PER 기준 적정주가 (보조) #}
+  {% if d.implied_pe %}
+  <div class="hmc-implied-wrap" style="margin-top:12px">
+    <div class="hmc-sec-sub" style="margin-bottom:10px">섹터 PER 기준 역산 적정주가 <small class="muted">(보조 지표 · EPS ₩{{ (px.current / v.per_trailing)|round|int|format_number if v.per_trailing else '—' }}/주 기준)</small></div>
+    <table class="hmc-implied-table">
+      <thead><tr><th>비교 기업</th><th>PER</th><th>적정주가</th><th>현재가 대비</th></tr></thead>
+      <tbody>
+      {% for row in d.implied_pe %}
+      <tr>
+        <td>{{ row.name }}</td>
+        <td class="num">{{ row.pe }}x</td>
+        <td class="num"><b>{{ row.fmt_implied }}</b></td>
+        <td class="num {{ row.tone }}">{{ row.fmt_gap }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+
+{# ─── ⑤ 핵심 은행 지표 (하드코딩 IR) ─── #}
+{% if d.bank_kpi %}
+<section class="card">
+  <div class="hmc-sec-head">🏦 핵심 은행 지표 <span class="muted" style="font-size:11px">{{ d.bank_kpi_asof }}</span></div>
+  <div class="shb-kpi-groups">
+    {% for grp in d.bank_kpi %}
+    <div class="shb-kpi-group">
+      <div class="shb-kpi-group-title">{{ grp.group }}</div>
+      <div class="shb-kpi-cards">
+        {% for it in grp['items'] %}
+        <div class="shb-kpi-card {{ it.tone }}">
+          <div class="shb-kpi-top">
+            <span class="shb-kpi-label">{{ it.label }}</span>
+            {% if it.hint %}<span class="shb-kpi-hint">{{ it.hint }}</span>{% endif %}
+          </div>
+          <div class="shb-kpi-val {{ it.tone }}">{{ it.fmt }}</div>
+          {% if it.note %}<div class="shb-kpi-note">{{ it.note }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="hmc-implied-note">위 지표는 공개 IR·실적발표 기준 근사치로, 최신 분기 공시로 검증·갱신이 필요함. 은행 고유 지표(NIM·BIS·CET1·NPL)는 시세 API로 자동 수집되지 않아 별도 관리됨.</p>
+</section>
+{% endif %}
+
+{# ─── ⑥ 실적 차트 ─── #}
+{% if d.quarterly or d.annual %}
+<section class="card">
+  <div class="hmc-sec-head">📈 실적 추이 <span class="muted" style="font-size:11px">순이익 중심</span>
+    <span class="hmc-tab-group">
+      <button class="hmc-tab active" id="tabQ" onclick="switchPeriod('quarterly')">분기별</button>
+      <button class="hmc-tab" id="tabA" onclick="switchPeriod('annual')">연간</button>
+    </span>
+  </div>
+  <div class="hmc-chart-wrap">
+    <canvas id="shbResultChart"></canvas>
+  </div>
+  <div class="hmc-chart-legend">
+    <span><i style="background:#3b82f6"></i>영업수익</span>
+    <span><i style="background:#16c784"></i>영업이익</span>
+    <span><i style="background:#f0a020"></i>순이익</span>
+  </div>
+</section>
+{% endif %}
+
+{# ─── ⑦ 재무 그리드 (은행형) ─── #}
+{% set f = d.financials %}
+{% set ff = f.fmt %}
+<section class="card">
+  <div class="hmc-sec-head">🧮 재무 지표 <span class="muted" style="font-size:11px">시세 API 수집분 (TTM/최근)</span></div>
+  <div class="hmc-fin-grid">
+
+    {# 규모 #}
+    <div class="hmc-fin-group">
+      <div class="hmc-fin-group-title">이익 규모</div>
+      <div class="hmc-fin-row">
+        <span>순이익 (TTM)</span>
+        <span class="hmc-fin-val good">{{ ff.net_income if ff.net_income is defined else '—' }}</span>
+      </div>
+      <div class="hmc-fin-row">
+        <span>영업이익 (TTM)</span>
+        <span class="hmc-fin-val">{{ ff.operating_profit if ff.operating_profit is defined else '—' }}</span>
+      </div>
+      <div class="hmc-fin-row">
+        <span>영업수익 (TTM)</span>
+        <span class="hmc-fin-val">{{ ff.revenue }}</span>
+      </div>
+    </div>
+
+    {# 수익성 #}
+    <div class="hmc-fin-group">
+      <div class="hmc-fin-group-title">수익성</div>
+      <div class="hmc-fin-row">
+        <span>ROE (자기자본이익률)</span>
+        <span class="hmc-fin-val {{ 'good' if (f.roe or 0) > 10 else 'warn' if (f.roe or 0) > 7 else 'bad' if f.roe is not none else '' }}">
+          {{ '%.1f%%'|format(f.roe) if f.roe is not none else '—' }}
+        </span>
+      </div>
+      <div class="hmc-fin-row">
+        <span>순이익률</span>
+        <span class="hmc-fin-val">{{ '%.1f%%'|format(f.net_margin) if f.net_margin is not none else '—' }}</span>
+      </div>
+      <div class="hmc-fin-row">
+        <span>영업이익률</span>
+        <span class="hmc-fin-val">{{ '%.1f%%'|format(f.operating_margin) if f.operating_margin is not none else '—' }}</span>
+      </div>
+    </div>
+
+    {# 참고 (은행 고유 지표는 ⑤ 참조) #}
+    <div class="hmc-fin-group">
+      <div class="hmc-fin-group-title">참고</div>
+      <div class="hmc-fin-row">
+        <span>시가총액</span>
+        <span class="hmc-fin-val">{{ d.price.fmt.market_cap }}</span>
+      </div>
+      <div class="hmc-fin-row">
+        <span>배당수익률</span>
+        <span class="hmc-fin-val {{ 'good' if (v.div_yield or 0) > 3.5 else '' }}">{{ vf.div_yield }}</span>
+      </div>
+      <div class="hmc-fin-row">
+        <span class="muted" style="font-size:11px">NIM·BIS·NPL 등은 ⑤ 핵심 은행 지표 참조</span>
+        <span></span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{# ─── ⑧ 전략 플랜 이행 현황 ─── #}
+{% set ps = d.plan_summary %}
+<section class="card">
+  <div class="hmc-sec-head">🗺 전략 플랜 이행 현황 <span class="muted" style="font-size:11px">공개 IR 기반 · 2026년 7월 현황</span></div>
+
+  <div class="hmc-plan-summary-bar">
+    <div class="hmc-ps-score-wrap">
+      <div class="hmc-ps-score {{ ps.score_tone }}">{{ ps.score }}%</div>
+      <div class="hmc-ps-score-label">전체 이행도</div>
+      <div class="hmc-ps-score-track">
+        <div class="hmc-ps-score-fill {{ ps.score_tone }}" style="width:{{ ps.score }}%"></div>
+      </div>
+    </div>
+    <div class="hmc-ps-counts">
+      <div class="hmc-ps-stat">
+        <span class="hmc-ps-num good">{{ ps.achieved }}</span>
+        <span class="hmc-ps-lbl">달성</span>
+      </div>
+      <div class="hmc-ps-stat">
+        <span class="hmc-ps-num warn">{{ ps.in_progress }}</span>
+        <span class="hmc-ps-lbl">진행 중</span>
+      </div>
+      <div class="hmc-ps-stat">
+        <span class="hmc-ps-num neutral">{{ ps.planned }}</span>
+        <span class="hmc-ps-lbl">예정</span>
+      </div>
+      {% if ps.delayed %}
+      <div class="hmc-ps-stat">
+        <span class="hmc-ps-num bad">{{ ps.delayed }}</span>
+        <span class="hmc-ps-lbl">지연</span>
+      </div>
+      {% endif %}
+      <div class="hmc-ps-stat">
+        <span class="hmc-ps-num muted">{{ ps.total }}</span>
+        <span class="hmc-ps-lbl">전체</span>
+      </div>
+    </div>
+    <div class="hmc-ps-track-legend">
+      <span class="hmc-track-dot good"></span> 정상 궤도
+      <span class="hmc-track-dot warn"></span> 주의 필요
+      <span class="hmc-track-dot neutral"></span> 변수 존재
+    </div>
+  </div>
+
+  <div class="hmc-plans">
+    {% for ph in d.plans %}
+    <div class="hmc-plan-group">
+      <div class="hmc-plan-title">{{ ph.icon }} {{ ph.title }}</div>
+      <div class="hmc-plan-items">
+        {% for it in ph['items'] %}
+        <div class="hmc-plan-item {{ it.status_tone }}">
+          <div class="hmc-plan-item-top">
+            <span class="hmc-status-badge {{ it.status_tone }}">{{ it.status_label }}</span>
+            <span class="hmc-plan-label">{{ it.label }}</span>
+            {% if it.target_date %}
+            <span class="hmc-plan-date">📅 {{ it.target_date }}</span>
+            {% endif %}
+          </div>
+          {% if it.detail %}
+          <div class="hmc-plan-detail">{{ it.detail }}</div>
+          {% endif %}
+
+          {% if it.kpi %}
+          {% set k = it.kpi %}
+          <div class="hmc-plan-kpi">
+            <div class="hmc-kpi-row">
+              <span class="hmc-kpi-label">실적</span>
+              <span class="hmc-kpi-actual">{{ k.actual }}</span>
+              <span class="hmc-kpi-sep">→</span>
+              <span class="hmc-kpi-label">목표</span>
+              <span class="hmc-kpi-target">{{ k.target }}</span>
+              <span class="hmc-kpi-track {{ k.track_tone }}">{{ k.track_label }}</span>
+            </div>
+            {% if k.note %}
+            <div class="hmc-kpi-note">{{ k.note }}</div>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if it.progress_pct is not none and it.status != 'achieved' %}
+          <div class="hmc-plan-progress-row">
+            <div class="hmc-plan-progress-track">
+              <div class="hmc-plan-progress-bar {{ it.status_tone }}" style="width:{{ it.progress_pct }}%"></div>
+            </div>
+            <span class="hmc-plan-progress-label">{{ it.progress_pct }}%</span>
+          </div>
+          {% elif it.status == 'achieved' %}
+          <div class="hmc-plan-progress-row">
+            <div class="hmc-plan-progress-track">
+              <div class="hmc-plan-progress-bar good" style="width:100%"></div>
+            </div>
+            <span class="hmc-plan-progress-label">완료</span>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="hmc-plan-legend">
+    <span class="hmc-status-badge good">✅ 달성</span> 목표 달성
+    <span class="hmc-status-badge warn">🟡 진행 중</span> 이행 중
+    <span class="hmc-status-badge neutral">📋 예정</span> 향후 예정
+    <span class="hmc-status-badge bad">⚠ 지연</span> 일정 지연
+  </div>
+</section>
+
+{# ─── ⑨ 주주환원·밸류업 ─── #}
+{% set sh = d.shareholder %}
+<section class="card">
+  <div class="hmc-sec-head">💰 주주환원 · 밸류업 <span class="muted" style="font-size:11px">{{ sh.asof }}</span></div>
+
+  {# 헤드라인 카드 #}
+  <div class="hmc-bd-grid">
+    {% for c in sh.cards %}
+    <div class="hmc-bd-card">
+      <div class="hmc-bd-title">{{ c.title }}</div>
+      <div class="hmc-bd-val {{ c.tone }}">{{ c.val }}</div>
+      <div class="hmc-bd-sub">{{ c.sub }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# 이행 현황 #}
+  {% if sh.plans %}
+  {% set shps = sh.plan_summary %}
+  <div class="hmc-robot-exec">
+    <div class="hmc-sec-sub" style="margin:20px 0 12px">
+      밸류업 세부 이행 현황
+      <span class="hmc-rexec-score {{ shps.score_tone }}">전체 이행도 {{ shps.score }}%</span>
+    </div>
+    {% for cat in sh.plans %}
+    <div class="hmc-rexec-cat">
+      <div class="hmc-rexec-cat-title">{{ cat.icon }} {{ cat.category }}</div>
+      {% for it in cat['items'] %}
+      <div class="hmc-rexec-item">
+        <div class="hmc-rexec-top">
+          <span class="hmc-status-badge {{ it.status_tone }}">{{ it.status_label }}</span>
+          <span class="hmc-rexec-label">{{ it.label }}</span>
+          {% if it.target_date %}
+          <span class="hmc-plan-date">📅 {{ it.target_date }}</span>
+          {% endif %}
+        </div>
+        {% if it.detail %}
+        <div class="hmc-plan-detail">{{ it.detail }}</div>
+        {% endif %}
+        <div class="hmc-plan-kpi">
+          <div class="hmc-kpi-row">
+            <span class="hmc-kpi-label">실적</span>
+            <span class="hmc-kpi-actual">{{ it.actual }}</span>
+            <span class="hmc-kpi-sep">→</span>
+            <span class="hmc-kpi-label">목표</span>
+            <span class="hmc-kpi-target">{{ it.target }}</span>
+            <span class="hmc-kpi-track {{ it.track_tone }}">{{ it.track_label }}</span>
+          </div>
+          {% if it.note %}
+          <div class="hmc-kpi-note">{{ it.note }}</div>
+          {% endif %}
+        </div>
+        <div class="hmc-plan-progress-row">
+          <div class="hmc-plan-progress-track">
+            <div class="hmc-plan-progress-bar {{ it.status_tone }}" style="width:{{ it.progress_pct }}%"></div>
+          </div>
+          <span class="hmc-plan-progress-label">{{ it.progress_pct }}%</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+{# ─── ⑩ 비은행 · 글로벌 포트폴리오 ─── #}
+{% set nb = d.nonbank %}
+<section class="card">
+  <div class="hmc-sec-head">🏢 비은행 · 글로벌 포트폴리오 <span class="muted" style="font-size:11px">{{ nb.asof }}</span></div>
+
+  {# 비은행 이익 비중 #}
+  <div class="hmc-sec-sub" style="margin-bottom:10px">비은행 이익 비중 <small class="muted">(그룹 순이익 대비 · 근사)</small>
+    <span class="hmc-rexec-score {{ 'good' if nb.ratio.actual >= nb.ratio.target else 'warn' }}">약 {{ nb.ratio.actual }}% · 목표 {{ nb.ratio.target }}%</span>
+  </div>
+  <div class="hmc-peer-bars">
+    {% set mixmax = nb.mix | map(attribute='pct') | max %}
+    {% for m in nb.mix %}
+    <div class="hmc-peer-row">
+      <span class="hmc-peer-name">{{ m.name }} <small class="muted">{{ m.note }}</small></span>
+      <div class="hmc-peer-bar-wrap">
+        <div class="hmc-peer-bar" style="width:{{ (m.pct / mixmax * 100)|round(1) }}%;background:#16c784" title="{{ m.pct }}%"></div>
+      </div>
+      <span class="hmc-peer-val">{{ m.pct }}%</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# 이행 현황 #}
+  {% if nb.plans %}
+  {% set nbps = nb.plan_summary %}
+  <div class="hmc-robot-exec">
+    <div class="hmc-sec-sub" style="margin:20px 0 12px">
+      비은행·글로벌 세부 이행 현황
+      <span class="hmc-rexec-score {{ nbps.score_tone }}">전체 이행도 {{ nbps.score }}%</span>
+    </div>
+    {% for cat in nb.plans %}
+    <div class="hmc-rexec-cat">
+      <div class="hmc-rexec-cat-title">{{ cat.icon }} {{ cat.category }}</div>
+      {% for it in cat['items'] %}
+      <div class="hmc-rexec-item">
+        <div class="hmc-rexec-top">
+          <span class="hmc-status-badge {{ it.status_tone }}">{{ it.status_label }}</span>
+          <span class="hmc-rexec-label">{{ it.label }}</span>
+          {% if it.target_date %}
+          <span class="hmc-plan-date">📅 {{ it.target_date }}</span>
+          {% endif %}
+        </div>
+        {% if it.detail %}
+        <div class="hmc-plan-detail">{{ it.detail }}</div>
+        {% endif %}
+        <div class="hmc-plan-kpi">
+          <div class="hmc-kpi-row">
+            <span class="hmc-kpi-label">실적</span>
+            <span class="hmc-kpi-actual">{{ it.actual }}</span>
+            <span class="hmc-kpi-sep">→</span>
+            <span class="hmc-kpi-label">목표</span>
+            <span class="hmc-kpi-target">{{ it.target }}</span>
+            <span class="hmc-kpi-track {{ it.track_tone }}">{{ it.track_label }}</span>
+          </div>
+          {% if it.note %}
+          <div class="hmc-kpi-note">{{ it.note }}</div>
+          {% endif %}
+        </div>
+        <div class="hmc-plan-progress-row">
+          <div class="hmc-plan-progress-track">
+            <div class="hmc-plan-progress-bar {{ it.status_tone }}" style="width:{{ it.progress_pct }}%"></div>
+          </div>
+          <span class="hmc-plan-progress-label">{{ it.progress_pct }}%</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+{# ─── ⑪ 국내 금융지주 주가 비교 ─── #}
+{% if d.bank_peers %}
+<section class="card">
+  <div class="hmc-sec-head">📊 국내 금융지주 1년 수익률 비교</div>
+  <div class="hmc-robot-peers">
+    {% set max_abs = d.bank_peers | map(attribute='ret_1y') | map('abs') | max %}
+    {% for p in d.bank_peers %}
+    {% set bar_w = (p.ret_1y / max_abs * 100) | abs | round(1) if max_abs else 0 %}
+    <div class="hmc-rp-row {{ 'hmc-rp-hmc' if p.is_self else '' }}">
+      <span class="hmc-rp-name">{{ p.name }}</span>
+      <div class="hmc-rp-bar-wrap">
+        {% if p.ret_1y >= 0 %}
+        <div class="hmc-rp-bar pos" style="width:{{ bar_w }}%"></div>
+        {% else %}
+        <div class="hmc-rp-bar neg" style="width:{{ bar_w }}%"></div>
+        {% endif %}
+      </div>
+      <span class="hmc-rp-val {{ p.tone }}">{{ p.fmt_ret }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{# ─── ⑫ 애널리스트 컨센서스 ─── #}
+{% set an = d.analyst %}
+{% if an.target_mean is not none %}
+<section class="card">
+  <div class="hmc-sec-head">🎯 애널리스트 컨센서스</div>
+  <div class="hmc-analyst-wrap">
+    <div class="hmc-analyst-main">
+      <div class="hmc-analyst-rec {{ an.tone }}">
+        {{ an.recommendation }}
+        <small class="muted">({{ an.fmt.n_analysts }} 커버)</small>
+      </div>
+      <div class="hmc-analyst-target">
+        목표가 <b>{{ an.fmt.target_mean }}</b>
+        <span class="hmc-analyst-upside {{ an.tone }}">{{ an.fmt.upside }}</span>
+      </div>
+    </div>
+    <div class="hmc-target-range">
+      <div class="hmc-target-bar-wrap">
+        {% if an.target_low is not none and an.target_high is not none and d.price.current is not none %}
+        {% set lo = an.target_low %}
+        {% set hi = an.target_high %}
+        {% set cur = d.price.current %}
+        {% set rng = hi - lo %}
+        {% set cur_pos = ((cur - lo) / rng * 100) | round(1) if rng > 0 else 50 %}
+        {% set tgt_pos = ((an.target_mean - lo) / rng * 100) | round(1) if rng > 0 else 50 %}
+        <div class="hmc-tbar">
+          <div class="hmc-tbar-fill" style="width:{{ [tgt_pos, 100]|min }}%"></div>
+          <div class="hmc-tbar-cur" style="left:{{ [cur_pos, 100]|min }}%" title="현재가 {{ d.price.fmt.current }}">
+            <span>현재</span>
+          </div>
+          <div class="hmc-tbar-tgt" style="left:{{ [tgt_pos, 100]|min }}%" title="목표가 {{ an.fmt.target_mean }}">
+            <span>목표</span>
+          </div>
+        </div>
+        <div class="hmc-tbar-labels">
+          <span class="muted">저 {{ an.fmt.target_low }}</span>
+          <span class="muted">고 {{ an.fmt.target_high }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{# ─── 푸터 ─── #}
+<footer class="foot">
+  <span>신한금융지주 전용 분석 · 데이터: Yahoo Finance · Naver Finance</span>
+  <span class="muted" style="font-size:10px">전략·주주환원·은행지표는 공개 IR 기준 근사 · 투자 권유 아님</span>
+</footer>
+
+{% endif %}{# end ok #}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ─── 데이터 주입 ─── */
+window.__SHB_HISTORY__  = {{ (d.history if d.ok else []) | tojson }};
+window.__SHB_QUARTERLY__= {{ (d.quarterly if d.ok else []) | tojson }};
+window.__SHB_ANNUAL__   = {{ (d.annual if d.ok else []) | tojson }};
+window.__SHB_PEER_PBR__ = {{ (d.sector_pbr if d.ok else {}) | tojson }};
+window.__SHB_PBR__      = {{ (d.valuation.pbr if d.ok and d.valuation else none) | tojson }};
+window.__SHB_ANALYSIS__ = {{ (analysis.body_md if analysis and analysis.ok else '') | tojson }};
+</script>
+<script>
+"use strict";
+
+/* ─── 마크다운 렌더 (LLM 분석 본문) ─── */
+(function() {
+  const el = document.getElementById("shb-body-md");
+  if (!el || !window.__SHB_ANALYSIS__ || !window.marked) return;
+  const raw = window.marked.parse(window.__SHB_ANALYSIS__);
+  el.innerHTML = window.DOMPurify ? DOMPurify.sanitize(raw) : raw;
+})();
+
+/* ─── 주가 1년 라인 차트 ─── */
+(function() {
+  const cv = document.getElementById("shbPriceChart");
+  const hist = window.__SHB_HISTORY__;
+  if (!cv || !hist || !hist.length || !window.Chart) return;
+  new Chart(cv, {
+    type: "line",
+    data: {
+      labels: hist.map(p => p.date),
+      datasets: [{
+        data: hist.map(p => p.value),
+        borderColor: "#3b82f6",
+        backgroundColor: (ctx) => {
+          const {ctx: c, chartArea} = ctx.chart;
+          if (!chartArea) return "transparent";
+          const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+          g.addColorStop(0, "#3b82f633"); g.addColorStop(1, "#3b82f600");
+          return g;
+        },
+        borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: {display: false},
+        tooltip: { callbacks: {
+          label: ctx => `₩${ctx.raw.toLocaleString("ko-KR")}`,
+        }},
+      },
+      scales: {
+        x: { display: true, ticks: { color: "#5e6678", maxTicksLimit: 8, maxRotation: 0 }, grid: { display: false } },
+        y: { display: true, ticks: { color: "#5e6678", callback: v => `₩${(v/1000).toFixed(0)}K` }, grid: { color: "#232c3b" } },
+      },
+    },
+  });
+})();
+
+/* ─── 분기/연간 실적 막대 차트 ─── */
+let _resultChart = null;
+
+function buildResultChart(data) {
+  const cv = document.getElementById("shbResultChart");
+  if (!cv || !data || !data.length || !window.Chart) return;
+  if (_resultChart) { _resultChart.destroy(); _resultChart = null; }
+
+  const labels = data.map(q => q.period);
+  const rev = data.map(q => q.revenue ? +(q.revenue / 1e12).toFixed(2) : null);
+  const op  = data.map(q => q.operating_profit ? +(q.operating_profit / 1e12).toFixed(2) : null);
+  const ni  = data.map(q => q.net_income ? +(q.net_income / 1e12).toFixed(2) : null);
+
+  const datasets = [
+    { label: "영업수익 (조원)", data: rev, type: "bar", backgroundColor: "#3b82f633", borderColor: "#3b82f6", borderWidth: 1.5, yAxisID: "y" },
+    { label: "영업이익 (조원)", data: op, type: "bar", backgroundColor: "#16c78466", borderColor: "#16c784", borderWidth: 1.5, yAxisID: "y" },
+    { label: "순이익 (조원)", data: ni, type: "bar", backgroundColor: "#f0a02055", borderColor: "#f0a020", borderWidth: 1.5, yAxisID: "y" },
+  ];
+
+  _resultChart = new Chart(cv, {
+    type: "bar",
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${ctx.raw?.toFixed(2) ?? '—'}조원`,
+          }
+        },
+      },
+      scales: {
+        x: { ticks: { color: "#5e6678" }, grid: { display: false } },
+        y: { ticks: { color: "#5e6678", callback: v => `${v}조` }, grid: { color: "#232c3b" } },
+      },
+    },
+  });
+}
+
+function switchPeriod(mode) {
+  document.getElementById("tabQ").classList.toggle("active", mode === "quarterly");
+  document.getElementById("tabA").classList.toggle("active", mode === "annual");
+  buildResultChart(mode === "quarterly" ? window.__SHB_QUARTERLY__ : window.__SHB_ANNUAL__);
+}
+
+buildResultChart(window.__SHB_QUARTERLY__);
+
+/* ─── 은행 섹터 PBR 비교 막대 ─── */
+(function() {
+  const wrap = document.getElementById("peerBars");
+  const peers = window.__SHB_PEER_PBR__;
+  const self  = window.__SHB_PBR__;
+  if (!wrap || !peers) return;
+
+  const all = { "신한지주(055550)": self, ...peers };
+  // "섹터 중앙값"은 판단 기준선이므로 막대에서 제외
+  delete all["섹터 중앙값"];
+  const maxVal = Math.max(...Object.values(all).filter(v => v != null));
+
+  let html = "";
+  for (const [name, val] of Object.entries(all)) {
+    if (val == null) continue;
+    const w = (val / maxVal * 100).toFixed(1);
+    const isSelf = name.includes("신한");
+    const color = isSelf ? "#3b82f6" : "#5e6678";
+    html += `
+      <div class="hmc-peer-row">
+        <span class="hmc-peer-name ${isSelf ? "hmc-peer-self" : ""}">${name}</span>
+        <div class="hmc-peer-bar-wrap">
+          <div class="hmc-peer-bar" style="width:${w}%;background:${color}" title="${val.toFixed(2)}x"></div>
+        </div>
+        <span class="hmc-peer-val ${isSelf ? "hmc-peer-self" : ""}">${val.toFixed(2)}x</span>
+      </div>`;
+  }
+  wrap.innerHTML = html;
+})();
+
+/* ─── 분석 생성 완료 자동 새로고침 ─── */
+(function() {
+  if (!document.getElementById("shb-analysis-loading")) return;
+  let ticks = 0;
+  const poll = setInterval(async () => {
+    try {
+      const res = await fetch("/api/shinhan/analysis");
+      const j = await res.json();
+      if (j.ready) { clearInterval(poll); location.reload(); }
+    } catch(e) {}
+    ticks++;
+    if (ticks > 180) clearInterval(poll);
+  }, 5000);
+})();
+
+/* ─── KST 시각 변환 ─── */
+document.querySelectorAll("time.kst").forEach(el => {
+  const raw = el.dataset.utc; if (!raw) { el.textContent = "—"; return; }
+  const d = new Date(raw); if (isNaN(d)) { el.textContent = "—"; return; }
+  if (el.classList.contains("rel")) {
+    const s = (Date.now() - d.getTime()) / 1000;
+    el.textContent = s < 60 ? "방금" : s < 3600 ? `${Math.floor(s/60)}분 전` : `${Math.floor(s/3600)}시간 전`;
+  } else {
+    el.textContent = new Intl.DateTimeFormat("ko-KR",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}).format(d);
+  }
+});
+</script>
+{% endblock %}

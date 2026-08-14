@@ -16,6 +16,7 @@ from apscheduler.triggers.cron import CronTrigger
 from . import repository as repo
 from .analysis import briefing as briefing_mod
 from .analysis import hyundai as hyundai_mod
+from .analysis import shinhan as shinhan_mod
 from .analysis import llm as llm_mod
 from .analysis import regime as regime_mod
 from .analysis import translate as translate_mod
@@ -330,6 +331,12 @@ def _do_run_inner(started: datetime, ts_utc: str, snapshot_id: int) -> dict:
         hyundai_mod.refresh()
     except Exception:  # noqa: BLE001
         logger.warning("현대차 데이터 갱신 실패(무시)")
+
+    # 신한지주 실시간 데이터 갱신 (실패해도 수집을 막지 않게)
+    try:
+        shinhan_mod.refresh()
+    except Exception:  # noqa: BLE001
+        logger.warning("신한지주 데이터 갱신 실패(무시)")
 
     # 4) 정리
     try:

@@ -23,11 +23,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 .\.venv\Scripts\python.exe run_shinhan_test.py   # 8002 /shinhan
 .\.venv\Scripts\python.exe run_flows_test.py     # 8003 /flows
 
-# 문법 점검 (전용 테스트 프레임워크 없음 - 검증은 스크립트/수동 HTTP로)
+# 테스트 (순수 함수만 - 네트워크·DB·LLM 없음)
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pytest tests -q
+
+# 문법 점검
 .\.venv\Scripts\python.exe -m py_compile app/<file>.py
 ```
 
-정식 테스트 스위트가 없다. 변경 검증은 (1) `py_compile`/`node --check`, (2) 임시 포트에 서버 띄워 풀 HTTP 렌더 확인, (3) 실수집 1회(수동 `pipeline.run_collection()` 또는 `/api/collect`)로 한다. 프론트(app.js) 변경은 `node --check`.
+테스트는 **순수 계산·표기 규약에 한정**(`tests/`)한다 - 수집·저장·렌더는 여전히 스크립트/수동 HTTP로 검증한다. `pytest`는 반드시 `python -m pytest`로 실행할 것(cwd가 sys.path에 들어가야 `app` 패키지가 잡힌다). 변경 검증 순서: (1) `pytest` + `py_compile`/`node --check`, (2) 임시 포트에 서버 띄워 풀 HTTP 렌더 확인, (3) 실수집 1회(수동 `pipeline.run_collection()` 또는 `/api/collect`). 프론트(app.js) 변경은 `node --check`.
 
 ## Non-obvious operational facts
 
@@ -35,7 +39,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **서버 가동 중 수동 수집은 주의** - DB 락 경합으로 매우 느려진다.
 - **콘솔 인코딩**: 한글 Windows는 cp949라 `₩`(U+20A9)·`—` 등이 콘솔 출력 시 깨지거나 크래시. 앱 로깅/웹 렌더는 utf-8이라 무관하지만, **테스트 스크립트는 로그 문구에 ASCII 구두점만 쓰거나 stdout을 utf-8로 reconfigure**해야 한다.
 - **FRED**: 키 없으면 CSV 호스트(`fred.stlouisfed.org`), 키 있으면 공식 API(`api.stlouisfed.org`) 경유. 이 환경에서 CSV 호스트가 간헐 차단되므로 무료 `FRED_API_KEY` 설정이 안정적.
-- **ECOS**(한국은행)**는 실키 필요**(공개 'sample' 키는 10건 제한). `ECOS_API_KEY` 없으면 한국 거시 일부만 비고, 단 한국 금리(`kr_10y`/`kr_3m`)는 FRED OECD 경유라 ECOS 없이도 동작.
+- **ECOS**(한국은행)**는 실키 필요**(공개 'sample' 키는 10건 제한). **행수 상한을 넘기면 오래된 쪽 N건을 주고 최신을 버린다** - 조용히 값이 낡는다(실측: 5년창·상한1000 -> 1000건이 2021-01~**2025-01**에서 끊겨 최신값이 7개월 전. 상한 5000 -> 1382건 전량·당일까지). 창을 늘릴 때는 상한도 같이 올릴 것.
 - **브리핑 생성은 100% 출력(decode) 바운드**로 ~130-170s 소요(입력 프롬프트 크기는 무관 - prefill은 사실상 공짜). `LLM_TIMEOUT` 기본 300s. 프롬프트 트리밍으로는 가속되지 않으니 시도하지 말 것.
 - **대량 DB 쓰기는 명시 트랜잭션 필수**: `db.py`가 `isolation_level=None`(autocommit)이라 `executemany`를 그냥 돌리면 행마다 커밋해 수십 초 걸린다. `upsert_history`/`save_observations`는 `BEGIN IMMEDIATE`/`COMMIT`로 묶여 있음(367x 차이).
 

@@ -1,0 +1,3 @@
+# 개발·검증 전용 의존성 (앱 구동에는 불필요 - requirements.txt 와 별도)
+-r requirements.txt
+pytest==8.3.4

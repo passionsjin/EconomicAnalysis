@@ -14,6 +14,7 @@ logs/
 
 # 검증 산출물
 verify_report.json
+.pytest_cache/
 
 # 에디터/IDE
 .idea/

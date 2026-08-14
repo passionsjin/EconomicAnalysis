@@ -65,12 +65,15 @@ class EcosCollector(Collector):
         for ind in inds:
             try:
                 if ind.ecos_cycle == "D":
-                    start = (now.year - 2) * 10000 + now.month * 100 + 1
-                    start_t, end_t = f"{now.year - 2}0101", now.strftime("%Y%m%d")
+                    # 일별은 5년치(≈1250 영업일) — 백분위 룩백 stat_window("D")=1260 을 채우기 위함.
+                    # 행수가 1000을 넘으므로 페이지 크기도 함께 키운다.
+                    start_t, end_t = f"{now.year - 5}0101", now.strftime("%Y%m%d")
+                    rows_max = 5000
                 else:  # 월별 기본 (3년치 → YoY 가능)
                     start_t, end_t = f"{now.year - 3}01", now.strftime("%Y%m")
+                    rows_max = 1000
 
-                url = (f"{_BASE}/{key}/json/kr/1/1000/"
+                url = (f"{_BASE}/{key}/json/kr/1/{rows_max}/"
                        f"{ind.symbol}/{ind.ecos_cycle}/{start_t}/{end_t}/{ind.ecos_item}")
                 data = http.get_json(url)
 

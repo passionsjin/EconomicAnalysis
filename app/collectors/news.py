@@ -45,22 +45,37 @@ class NewsCollector(Collector):
     label = "뉴스(RSS)"
 
     def collect(self) -> CollectResult:
+        now = datetime.now(timezone.utc)
+        max_age = max(1, settings.news_max_age_hours)
+        stale: list[str] = []
+
         def _one(feed) -> list[NewsItem]:
             name, url = feed
             raw = http.get(url, retries=1, timeout=min(settings.request_timeout, 12)).content
             parsed = feedparser.parse(raw)
             out = []
+            newest_age = None
             for e in parsed.entries[:_PER_FEED]:
                 link = getattr(e, "link", "")
                 title = _clean(getattr(e, "title", ""))
                 if not link or not title:
                     continue
+                pub = _published_iso(e)
+                if pub:
+                    # 죽은 피드는 200 을 주면서 옛 기사를 계속 반환한다 — 날짜로 거른다.
+                    age_h = (now - datetime.fromisoformat(pub)).total_seconds() / 3600.0
+                    if newest_age is None or age_h < newest_age:
+                        newest_age = age_h
+                    if age_h > max_age:
+                        continue
                 out.append(NewsItem(
-                    source=name, title=title, link=link,
-                    published=_published_iso(e),
+                    source=name, title=title, link=link, published=pub,
                     summary=_clean(getattr(e, "summary", ""))[:400],
                 ))
             if not out:
+                if newest_age is not None and newest_age > max_age:
+                    stale.append(f"{name}(최신 {newest_age / 24:.0f}일 전)")
+                    raise ValueError("동결 피드")
                 raise ValueError("빈 피드")
             return out
 
@@ -68,7 +83,7 @@ class NewsCollector(Collector):
         ok_feeds = 0
         fail_feeds = 0
         feeds = list(settings.news_feeds)
-        with ThreadPoolExecutor(max_workers=min(6, len(feeds) or 1)) as ex:
+        with ThreadPoolExecutor(max_workers=min(8, len(feeds) or 1)) as ex:
             for res in ex.map(lambda f: _safe(_one, f), feeds):
                 if res is None:
                     fail_feeds += 1
@@ -86,8 +101,11 @@ class NewsCollector(Collector):
             deduped.append(it)
 
         total = ok_feeds + fail_feeds
+        msg = f"{ok_feeds}/{total} 피드 정상, 기사 {len(deduped)}건"
+        if stale:
+            msg += f" | 동결 피드 교체 필요: {', '.join(stale)}"
         health = SourceHealth(
             source=self.source, ok=ok_feeds > 0, fetched=len(deduped), failed=fail_feeds,
-            message=f"{ok_feeds}/{total} 피드 정상, 기사 {len(deduped)}건",
+            message=msg,
         )
         return CollectResult(news=deduped, health=health)

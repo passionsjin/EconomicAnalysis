@@ -268,3 +268,28 @@ def test_파싱실패_폴백_헤드라인은_인용하지_않는다():
 
     assert briefing._FALLBACK_HEADLINE not in out
     assert "neutral" in out
+
+
+# ─────────────────────── 인용 수치 점검(_citation_audit) ───────────────────────
+
+def test_더_긴_라벨의_인용은_짧은_라벨_값으로_오인하지_않는다():
+    """'코스피 PER이 23.1배' 의 23.1 을 코스피 지수값(6,556)으로 읽으면 안 된다.
+
+    문체 지침 도입 후 LLM 이 조사('PER이')를 붙여 쓰면서 실제로 오발화한 사례.
+    """
+    quotes = {"kospi": _q("kospi", 6556.35, 6870.0)}
+    body = "- 코스피 PER이 23.1배로 밸류에이션 부담이 높다."
+    assert briefing._citation_audit(body, quotes) == []
+
+
+def test_실제로_틀린_인용은_잡아낸다():
+    quotes = {"kospi": _q("kospi", 6556.35, 6870.0)}
+    body = "- 코스피 3,120.5 로 마감했다."
+    issues = briefing._citation_audit(body, quotes)
+    assert len(issues) == 1 and "코스피" in issues[0]
+
+
+def test_정상_인용은_통과한다():
+    quotes = {"kospi": _q("kospi", 6556.35, 6870.0)}
+    body = "- 코스피 6,556.35 로 마감했다."
+    assert briefing._citation_audit(body, quotes) == []

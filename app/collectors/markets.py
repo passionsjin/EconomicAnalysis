@@ -54,17 +54,32 @@ def _fetch_symbol(symbol: str, rng: str) -> dict:
     raise last_exc  # type: ignore[misc]
 
 
+def _local_date(ts: int, gmtoffset: int) -> str:
+    """epoch -> 거래소 로컬 기준 날짜.
+
+    Yahoo 일봉 타임스탬프는 '거래소 로컬 자정 또는 장중 시각'이라 UTC 날짜로 찍으면 어긋난다.
+    특히 `=X`(환율)는 거래소가 Europe/London 이라 서머타임(gmtoffset=3600) 동안 일봉이
+    '전날 23:00 UTC' 로 오고, 그대로 저장하면 이력 전체가 하루씩 밀린다(일요일 행 발생).
+    meta.gmtoffset 을 더해 로컬 날짜로 되돌린다(오프셋 0 인 소스는 종전과 동일).
+    """
+    return datetime.fromtimestamp(ts + gmtoffset, tz=timezone.utc).strftime("%Y-%m-%d")
+
+
 def _parse(symbol: str, raw: dict) -> tuple[float | None, float | None, str | None, list[tuple[str, float]]]:
     meta = raw.get("meta") or {}
     price = meta.get("regularMarketPrice")
+    try:
+        gmtoffset = int(meta.get("gmtoffset") or 0)
+    except (TypeError, ValueError):
+        gmtoffset = 0
 
     ts_market = meta.get("regularMarketTime")
     as_of = None
     mkt_date = None
     if ts_market:
-        dt = datetime.fromtimestamp(int(ts_market), tz=timezone.utc)
-        as_of = dt.isoformat()
-        mkt_date = dt.strftime("%Y-%m-%d")
+        # as_of 는 시점이라 UTC 그대로, 날짜 비교용 mkt_date 만 로컬로 환산한다.
+        as_of = datetime.fromtimestamp(int(ts_market), tz=timezone.utc).isoformat()
+        mkt_date = _local_date(int(ts_market), gmtoffset)
 
     history: list[tuple[str, float]] = []
     timestamps = raw.get("timestamp") or []
@@ -73,8 +88,7 @@ def _parse(symbol: str, raw: dict) -> tuple[float | None, float | None, str | No
     for ts, close in zip(timestamps, closes):
         if close is None:
             continue
-        d = datetime.fromtimestamp(int(ts), tz=timezone.utc).strftime("%Y-%m-%d")
-        history.append((d, float(close)))
+        history.append((_local_date(int(ts), gmtoffset), float(close)))
 
     if price is None and history:
         price = history[-1][1]

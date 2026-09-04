@@ -242,6 +242,7 @@ def _indicator_view(ind: Indicator, obs: dict, rates: Optional[dict] = None) -> 
         "so_what": so_what(ind.key),                         # 핵심지표 한 줄 함의
         "easy_impact": _easy_impact(ind),                    # 쉬운 설명: 오를수록 호재/부담
         "error": row.get("error"),
+        "fallback": bool(row.get("fallback")),               # 수집 실패 → 저장된 직전값 표시
     }
 
 

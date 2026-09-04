@@ -34,6 +34,47 @@ _DELTA_KEYS = ["sp500", "nasdaq", "kospi", "vix", "us10y", "us_real10y",
                "dxy", "usdkrw", "gold", "wti", "btc", "us_hy_spread"]
 
 
+# 수집 실패 시 DB 직전값으로 메울 수 있는 최대 경과일(빈도별).
+# 간헐 장애(FRED 타임아웃)는 덮되, 죽은 시리즈가 옛 값으로 영원히 살아있는 것처럼
+# 보이지 않게 상한을 둔다. 월별은 '기간일자 + 발표지연'이라 넉넉히 잡는다.
+_FALLBACK_MAX_AGE_DAYS = {"D": 10, "W": 30, "M": 120}
+
+
+def _apply_fallbacks(quotes: dict[str, Quote], lookup, today=None) -> list[str]:
+    """수집 실패한 지표를 저장된 직전값으로 대체(제자리 수정). 대체한 키 목록 반환.
+
+    lookup(key) -> [(YYYY-MM-DD, value), ...] 오름차순 이력.
+    파생지표는 대상에서 제외한다 — 피연산이 복구되면 _compute_derived 가 다시 계산하므로,
+    직접 메우면 옛 값이 고착된다. 원 실패 사유(error)는 남겨 두고 fallback=True 로 표시.
+    """
+    today = today or datetime.now(timezone.utc).date()
+    filled: list[str] = []
+    for key, q in quotes.items():
+        if q.ok:
+            continue
+        ind = INDICATOR_BY_KEY.get(key)
+        if ind is None or ind.source == "derived":
+            continue
+        hist = [(d, v) for d, v in lookup(key) if v is not None]
+        if not hist:
+            continue
+        last_date, last_value = hist[-1]
+        try:
+            age = (today - datetime.strptime(last_date, "%Y-%m-%d").date()).days
+        except ValueError:
+            continue
+        if age > _FALLBACK_MAX_AGE_DAYS.get(ind.freq, 10):
+            continue
+        q.value = last_value
+        q.prev_close = hist[-2][1] if len(hist) >= 2 else None
+        q.as_of = f"{last_date}T00:00:00+00:00"
+        q.history = hist
+        q.ok = True
+        q.fallback = True
+        filled.append(key)
+    return filled
+
+
 def _apply_op(acc, op: str, x):
     """누적값에 연산 적용. '/' 는 0 나눗셈 시 None(계산 불가) 반환."""
     if acc is None or x is None:
@@ -276,6 +317,15 @@ def _do_run_inner(started: datetime, ts_utc: str, snapshot_id: int) -> dict:
         if r.health:
             healths.append(r.health)
 
+    # 1-b) 수집 실패 지표는 저장된 직전값으로 대체 — 간헐 장애(FRED 타임아웃)로
+    #      타일이 통째로 비고 파생까지 동반 결측되는 것을 막는다. 파생 계산보다 먼저.
+    filled = _apply_fallbacks(
+        quotes,
+        lambda k: [(r["date"], r["value"]) for r in repo.get_series(k, settings.history_points)],
+    )
+    if filled:
+        logger.info("    - 직전값 폴백 %d개: %s", len(filled), ", ".join(filled))
+
     # 2) 파생지표(실질금리·비율 등) — 수집된 피연산 지표로 계산
     logger.info("  [2/5] 파생지표 계산...")
     for dq in _compute_derived(quotes):
@@ -284,10 +334,11 @@ def _do_run_inner(started: datetime, ts_utc: str, snapshot_id: int) -> dict:
 
     ok_count = sum(1 for q in all_quotes if q.ok)
     fail_count = sum(1 for q in all_quotes if not q.ok)
+    fb_count = sum(1 for q in all_quotes if q.fallback)
 
     # 3) 저장 (+ 장애 에스컬레이션은 직전 상태 기준이라 save_health 전에)
-    logger.info("  [3/5] 저장 - 지표 %d(ok %d/fail %d) | 뉴스 %d | 캘린더 %d...",
-                len(all_quotes), ok_count, fail_count, len(news), len(events))
+    logger.info("  [3/5] 저장 - 지표 %d(ok %d/fail %d/폴백 %d) | 뉴스 %d | 캘린더 %d...",
+                len(all_quotes), ok_count, fail_count, fb_count, len(news), len(events))
     repo.save_observations(snapshot_id, all_quotes)
     repo.upsert_history(all_quotes)
     _escalate_failures(healths, ts_utc)

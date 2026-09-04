@@ -15,6 +15,7 @@ class Quote:
     history: list[tuple[str, float]] = field(default_factory=list)  # [(YYYY-MM-DD, close)]
     ok: bool = True
     error: Optional[str] = None
+    fallback: bool = False                       # 수집 실패 → DB 직전값으로 대체된 관측
 
     @property
     def change(self) -> Optional[float]:

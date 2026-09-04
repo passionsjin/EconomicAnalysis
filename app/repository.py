@@ -34,6 +34,7 @@ def save_observations(snapshot_id: int, quotes: list[Quote]) -> None:
         (
             snapshot_id, q.key, q.value, q.prev_close, q.change, q.change_pct,
             q.as_of, _source_of(q.key), 1 if q.ok else 0, q.error,
+            1 if q.fallback else 0,
         )
         for q in quotes
     ]
@@ -42,8 +43,9 @@ def save_observations(snapshot_id: int, quotes: list[Quote]) -> None:
         try:
             con.executemany(
                 """INSERT OR REPLACE INTO observations
-                   (snapshot_id, key, value, prev_close, change, change_pct, as_of, source, ok, error)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                   (snapshot_id, key, value, prev_close, change, change_pct, as_of,
+                    source, ok, error, fallback)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
                 rows,
             )
             con.execute("COMMIT")

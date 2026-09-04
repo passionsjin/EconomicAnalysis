@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS observations (
     source      TEXT,
     ok          INTEGER DEFAULT 1,
     error       TEXT,
+    fallback    INTEGER DEFAULT 0,    -- 1=수집 실패라 DB 직전값으로 대체된 값
     PRIMARY KEY (snapshot_id, key)
 );
 CREATE INDEX IF NOT EXISTS idx_obs_key ON observations(key);
@@ -119,6 +120,9 @@ def _migrate(con: sqlite3.Connection) -> None:
     for col, typ in (("regime_score", "INTEGER"), ("regime_tone", "TEXT"), ("regime_short", "TEXT")):
         if col not in scols:
             con.execute(f"ALTER TABLE snapshots ADD COLUMN {col} {typ}")
+    ocols = {r[1] for r in con.execute("PRAGMA table_info(observations)").fetchall()}
+    if "fallback" not in ocols:
+        con.execute("ALTER TABLE observations ADD COLUMN fallback INTEGER DEFAULT 0")
 
 
 def init_db() -> None:

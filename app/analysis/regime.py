@@ -59,6 +59,9 @@ def correlation_matrix(keys: list[str], window: int = 30) -> list[list[float | N
 
 # ── 위험선호 점수(레짐 v2) ───────────────────────────────────────────
 # 여러 신호를 [-1,+1] 기여도로 정규화해 가중 평균 → 0~100 (50=중립, 높을수록 위험선호).
+# 수준형 신호(HY·NFCI·장단기차)의 중립점은 '지표의 0'이 아니라 **실제 분포의 평범한 값**에
+# 맞춘다. 0 을 중립으로 두면 평상시에도 최대 우호(+1)로 포화돼 신호가 아니라 상수가 된다
+# (실측: 그 탓에 5년 소급 평균이 58.8 로 치우쳤고 NFCI 는 5년간 비우호였던 날이 0일).
 # 입력: VIX·HY스프레드(수준+방향)·NFCI·주가추세·섹터폭(경기-방어)·달러·실질금리·장단기차·실물경기(CFNAI).
 _SIG_WEIGHTS = {
     "vix": 0.18, "hy": 0.16, "nfci": 0.14, "equity": 0.14,
@@ -123,13 +126,17 @@ def _signals_at(aligned: dict[str, list], i: int, window: int) -> dict[str, tupl
 
     hy, hy0 = g("us_hy_spread"), gw("us_hy_spread")
     if hy is not None:
-        c_lvl = _clamp((4.5 - hy) / 1.5)                      # 타이트할수록 위험선호
+        c_lvl = _clamp((3.7 - hy) / 1.2)                      # 타이트할수록 위험선호
+        # 중립 3.7%: 2010년대 이후 통상 수준. 옛 기준 4.5%는 보유 데이터 최대(4.61%)에
+        # 근접해 사실상 도달 불가였다 → 평상시 내내 최대 우호로 포화.
         c_dir = _clamp(-(hy - hy0) / 0.2) if hy0 is not None else 0.0  # 축소=위험선호
         sig["hy"] = (0.6 * c_lvl + 0.4 * c_dir, hy)
 
     nfci = g("us_nfci")
     if nfci is not None:
-        sig["nfci"] = (_clamp(-nfci / 0.5), nfci)             # 음수(완화)=위험선호
+        # 중립 -0.45: NFCI 의 0 은 '1971년 이후 평균'이라 최근 20년 기준으론 이미 긴축 쪽.
+        # 실측 중앙값 -0.51(전체)/-0.43(최근 5년) → 그 수준을 중립으로 본다.
+        sig["nfci"] = (_clamp(-(nfci + 0.45) / 0.5), nfci)    # 중앙값보다 완화=위험선호
 
     spx, spx0 = g("sp500"), gw("sp500")
     if spx is not None and spx0:
@@ -155,7 +162,9 @@ def _signals_at(aligned: dict[str, list], i: int, window: int) -> dict[str, tupl
 
     curve = g("us_10y2y")
     if curve is not None:
-        sig["curve"] = (_clamp(curve / 0.5), curve)           # 역전(음수)=비우호
+        # 중립 +0.8%p: 정상 곡선의 장기 규범. 0 중립·분모 0.5 는 평범한 +0.5%p 를 만점
+        # 처리하는 동시에 '평탄(0)'과 '깊은 역전'을 똑같이 -1 로 뭉개 강도 차이를 잃었다.
+        sig["curve"] = (_clamp((curve - 0.8) / 1.5), curve)   # 정상 스티프닝=우호, 평탄·역전=비우호
 
     cfnai = g("us_cfnai")
     if cfnai is not None:

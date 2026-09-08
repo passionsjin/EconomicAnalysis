@@ -202,9 +202,21 @@ def api_regime(window: int = 20, span: int = 90):
     """위험선호 점수(현재 + 추이). 대시보드 레짐 패널·스파크라인용."""
     window = max(5, min(window, 60))
     span = max(20, min(span, 250))
-    return {"current": regime_mod.detect_regime(window),
+    current = regime_mod.detect_regime(window)
+    # CNN 공포·탐욕을 같은 응답에 얹어 프론트가 한 번의 fetch 로 두 게이지를 병기한다.
+    # (CNN 은 regime 신호가 아니라 독립 기준선 - presenter.build_fng_panel 주석 참고)
+    fng = None
+    snap = repo.latest_snapshot()
+    if snap:
+        try:
+            fng = presenter.build_fng_panel(repo.get_observations(snap["id"]),
+                                            (current or {}).get("score"))
+        except Exception:  # noqa: BLE001 - 병기 패널 실패가 레짐 패널을 막지 않게
+            fng = None
+    return {"current": current,
             "history": regime_mod.regime_history(window, span),
-            "stored": repo.regime_score_history(240)}
+            "stored": repo.regime_score_history(240),
+            "fng": fng}
 
 
 @app.get("/api/alerts")

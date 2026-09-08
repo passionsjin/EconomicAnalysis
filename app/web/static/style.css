@@ -86,6 +86,19 @@ a:hover{text-decoration:underline}
 .rc-bar>b.pos{background:var(--good)}
 .rc-bar>b.neg{background:var(--bad)}
 
+/* ── CNN 공포·탐욕 병기(자체 레짐 점수의 외부 대조군) ── */
+.fng-panel:not(:empty){margin:14px 0 4px;padding-top:12px;border-top:1px dashed var(--line)}
+.fng-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fng-name{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap}
+.fng-score{font-size:20px;font-weight:700;font-family:'IBM Plex Mono',ui-monospace,monospace;line-height:1}
+.fng-score small{font-size:11px;color:var(--muted2);font-weight:400}
+.fng-label{font-size:12px;font-weight:600;white-space:nowrap}
+.fng-gauge{flex:1;min-width:140px}
+.fng-cmp{font-size:11px;white-space:nowrap}
+.fng-gap{font-size:11px;margin-top:7px;line-height:1.5}
+.fng-gap.sig{color:var(--warn)}
+.fng-comp{margin-top:10px}
+
 /* ── 상관 히트맵 ── */
 .corr-wrap{overflow:auto}
 table.corr{border-collapse:collapse;font-size:11px;font-family:'IBM Plex Mono',ui-monospace,monospace;width:100%}

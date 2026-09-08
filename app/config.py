@@ -125,6 +125,7 @@ CATEGORIES: dict[str, str] = {
     "liquidity": "유동성·통화",
     "kr_macro": "한국 거시지표",
     "valuation": "밸류에이션",
+    "sentiment": "투자심리 (CNN 공포·탐욕)",
 }
 
 # 변화 기준 라벨 — 직전 관측이 하루/한 주/한 달 전인지. freq 를 아는 계층 전부가 공유
@@ -334,6 +335,40 @@ INDICATORS: list[Indicator] = [
               unit="%", decimals=2, up_is_good=None, freq="M",
               ecos_item="1100000", ecos_cycle="M",
               note="코스피 배당수익률(%). 높을수록 저평가·방어적 — 채권금리와 비교한 상대 매력"),
+    # ── 투자심리: CNN 공포·탐욕 (호출 1회로 10계열) ──
+    # 종합만 0~100 점수이고 나머지는 CNN 이 쓰는 구성요소의 '원시값'이다.
+    # 자체 regime 점수와 겹치는 VIX·S&P500 이 섞여 있어 기존 카드와 나란히 놓지 않으려고
+    # 별도 카테고리(sentiment)로 분리했다.
+    Indicator("cnn_fng", "CNN 공포·탐욕 지수", "sentiment", "cnn", "fear_and_greed_historical",
+              unit="P", decimals=0, up_is_good=True,
+              note="0=극단적 공포 / 100=극단적 탐욕. 25 이하 과매도·75 이상 과열 통념"),
+    Indicator("cnn_fng_momentum", "S&P500 (CNN 기준)", "sentiment", "cnn", "market_momentum_sp500",
+              unit="P", decimals=2, up_is_good=True,
+              note="CNN 모멘텀 요소의 원시값 — 125일선과의 이격으로 점수화된다"),
+    Indicator("cnn_fng_momentum_ma", "S&P500 125일선", "sentiment", "cnn", "market_momentum_sp125",
+              unit="P", decimals=2, up_is_good=None,
+              note="주가가 이 선 위면 탐욕, 아래면 공포 쪽으로 기운다"),
+    Indicator("cnn_fng_strength", "52주 신고가−신저가", "sentiment", "cnn", "stock_price_strength",
+              decimals=2, up_is_good=True,
+              note="NYSE 신고가 종목이 신저가보다 많을수록 탐욕. 음수 = 신저가 우위"),
+    Indicator("cnn_fng_breadth", "McClellan 등락폭", "sentiment", "cnn", "stock_price_breadth",
+              decimals=1, up_is_good=True,
+              note="상승/하락 종목 거래량 누적. 지수만 오르고 이 값이 빠지면 상승의 폭이 좁다는 뜻"),
+    Indicator("cnn_fng_putcall", "풋/콜 비율(5일)", "sentiment", "cnn", "put_call_options",
+              decimals=2, up_is_good=False,
+              note="1 이상 = 하락 베팅 우위(공포). 낮을수록 탐욕·과열"),
+    Indicator("cnn_fng_vix", "VIX (CNN 기준)", "sentiment", "cnn", "market_volatility_vix",
+              decimals=2, up_is_good=False,
+              note="CNN 변동성 요소의 원시값 — 50일선 대비로 점수화된다"),
+    Indicator("cnn_fng_vix_ma", "VIX 50일선", "sentiment", "cnn", "market_volatility_vix_50",
+              decimals=2, up_is_good=None,
+              note="VIX 가 이 선을 크게 웃돌면 공포 쪽으로 기운다"),
+    Indicator("cnn_fng_junk", "정크본드 수요", "sentiment", "cnn", "junk_bond_demand",
+              unit="%p", decimals=2, up_is_good=False,
+              note="정크본드와 투자등급 수익률 차. 좁을수록 위험선호(탐욕)"),
+    Indicator("cnn_fng_safehaven", "안전자산 선호", "sentiment", "cnn", "safe_haven_demand",
+              unit="%p", decimals=2, up_is_good=True,
+              note="최근 20일 주식−국채 수익률 차. 음수 = 채권으로 도피(공포)"),
 ]
 
 INDICATOR_BY_KEY: dict[str, Indicator] = {ind.key: ind for ind in INDICATORS}
@@ -350,13 +385,14 @@ _PRIORITY_1 = {
     "us_cpi_yoy", "us_10y2y", "us_hy_spread", "kospi", "usdkrw", "gold", "btc", "wti",
     "us_t10y3m", "us_nfci", "us_net_liq", "r_copper_gold",
     "us_cfnai", "kr_us_10y_spread", "kr_semi_exports_vol_yoy", "kr_exports_vol_yoy",
-    "kospi_per", "move", "us_2y_ffr",
+    "kospi_per", "move", "us_2y_ffr", "cnn_fng",
 }
 _PRIORITY_3 = {
     "silver", "copper", "natgas", "us05y", "us13w", "us30y",
     "eurusd", "usdjpy", "usdcny", "eth", "shanghai", "eustoxx", "hangseng",
     "xlk", "xlf", "xle", "xlv", "xli", "xly", "xlp", "xlu", "xlb", "xlre", "xlc",
     "us_walcl", "us_rrp", "us_tga", "us_m2", "hyg", "lqd", "kr_3m",
+    "cnn_fng_momentum", "cnn_fng_momentum_ma", "cnn_fng_vix", "cnn_fng_vix_ma",
 }
 
 
@@ -369,12 +405,39 @@ def priority_of(key: str) -> int:
 
 
 # ── 데이터 신뢰 구분(소스 성격) ──
-_SOURCE_TIER = {"yahoo": "시장", "fred": "공식", "ecos": "공식", "derived": "파생"}
+_SOURCE_TIER = {"yahoo": "시장", "fred": "공식", "ecos": "공식", "derived": "파생",
+                "cnn": "시장"}
 
 
 def source_tier(key: str) -> str:
     ind = INDICATOR_BY_KEY.get(key)
     return _SOURCE_TIER.get(ind.source, "—") if ind else "—"
+
+
+# ── CNN 공포·탐욕 구성요소 점수 라벨 ──
+# 구성요소의 0~100 환산점수는 시계열이 없어 INDICATORS 에 등록하지 않는다(수집기가
+# `cnnfg_score_*` 키로 이력만 쌓는다). 화면 라벨은 여기 SSOT 에 두고 병기 패널이 읽는다.
+# 키 집합은 collectors/cnn_fng.py 의 _SERIES 와 맞춰야 한다(tests/test_cnn_fng.py 가 감시).
+CNN_SCORE_LABELS: dict[str, str] = {
+    "cnnfg_score_momentum": "주가 모멘텀",
+    "cnnfg_score_strength": "신고가·신저가",
+    "cnnfg_score_breadth": "등락폭(거래량)",
+    "cnnfg_score_putcall": "풋/콜 비율",
+    "cnnfg_score_vix": "시장 변동성",
+    "cnnfg_score_junk": "정크본드 수요",
+    "cnnfg_score_safehaven": "안전자산 선호",
+}
+
+
+# ── 리스크 지표(실현변동성·MDD·52주 고저) 제외 카테고리 ──
+# 단위(%)만으로는 가려지지 않는 '가격이 아닌' 계열. 심리 점수·구성요소 원시값은 보유 대상이
+# 아니라 수익률/낙폭 개념이 성립하지 않는다(중복되는 S&P500·VIX 는 자기 카드에 이미 있다).
+RISK_EXEMPT_CATEGORIES = {"sentiment"}
+
+
+def wants_risk_metrics(key: str) -> bool:
+    ind = INDICATOR_BY_KEY.get(key)
+    return bool(ind and ind.category not in RISK_EXEMPT_CATEGORIES)
 
 
 # ── 원화 환산 ──

@@ -374,6 +374,8 @@
     {% if d.regime and d.regime.score is not none %}<span class="badge {{ d.regime.tone }}" title="{{ d.regime.tip }}">{{ d.regime.short }} · {{ d.regime.score }}/100</span>{% endif %}
   </h3>
   <div id="regime-panel" class="regime-panel muted">시장 분위기 계산 중…</div>
+  {# CNN 공포·탐욕 병기 — 자체 점수의 외부 대조군. renderRegime() 이 함께 채운다 #}
+  <div id="fng-panel" class="fng-panel"></div>
   <h4 class="subhead">자산간 상관 (최근 30일 일간수익률)</h4>
   <div id="corr-heatmap" class="corr-wrap muted">상관 행렬 로딩 중…</div>
   <div class="corr-legend muted">상관 +1(동조, 초록) ↔ −1(역행, 빨강).</div>

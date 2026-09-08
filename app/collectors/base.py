@@ -50,6 +50,7 @@ def _build_all() -> list[Collector]:
     from .markets import MarketsCollector
     from .fred import FredCollector
     from .ecos import EcosCollector
+    from .cnn_fng import CnnFngCollector
     from .news import NewsCollector
     from .calendar import CalendarCollector
 
@@ -57,6 +58,7 @@ def _build_all() -> list[Collector]:
         MarketsCollector(),
         FredCollector(),
         EcosCollector(),
+        CnnFngCollector(),
         NewsCollector(),
         CalendarCollector(),
     ]

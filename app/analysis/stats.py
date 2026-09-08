@@ -118,6 +118,10 @@ def risk_metrics(dv: list[tuple[str, float]], vol_window: int = 30,
         return None
     vals_all = [v for _d, v in dv]
     cur = vals_all[-1]
+    # 0 이하를 지나는 계열(스프레드·차이값 등)에는 비율수익률·낙폭이 정의되지 않는다.
+    # 그대로 계산하면 부호가 뒤집히며 σ4198%·MDD -244% 같은 불가능한 값이 나온다.
+    if any(v <= 0 for v in vals_all):
+        return None
 
     # 실현변동성(연율) — 최근 vol_window 거래일 수익률
     seg = vals_all[-(vol_window + 1):]
@@ -156,12 +160,13 @@ def risk_metrics(dv: list[tuple[str, float]], vol_window: int = 30,
 
 
 def enrich(key: str, value: float | None, freq: str,
-           window: int | None = None, unit: str = "") -> dict:
+           window: int | None = None, unit: str = "", risk_ok: bool = True) -> dict:
     """history 1회 조회로 백분위·z-score·이상치 + (일별)모멘텀·리스크지표를 함께 계산.
 
     백분위/z-score 룩백은 빈도별(일≈5년/주≈5년/월≈20년)이며 보유 이력 내에서만 계산.
     risk(실현변동성·MDD·52주 고저거리)는 일별 '가격형'(비% 단위) 지표에만 의미가 있어
-    freq=='D' 이고 unit!='%' 일 때만 산출한다.
+    freq=='D' 이고 unit!='%' 일 때만 산출한다. 단위만으로 가려지지 않는 계열(심리 점수 등)은
+    호출부가 risk_ok=False 로 끈다.
     """
     win = window if window is not None else stat_window(freq)
     series = repo.get_series(key, max(win, 300))
@@ -179,5 +184,5 @@ def enrich(key: str, value: float | None, freq: str,
             "span": _span_label([d for d, _ in recent]),
         }
     mom = _momentum_from(dv) if freq == "D" else None
-    risk = risk_metrics(dv) if (freq == "D" and unit != "%") else None
+    risk = risk_metrics(dv) if (freq == "D" and unit != "%" and risk_ok) else None
     return {"ctx": ctx, "momentum": mom, "risk": risk}

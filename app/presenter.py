@@ -15,8 +15,10 @@ from .analysis import regime as regime_mod
 from .analysis import stats as stats_mod
 from .analysis import verdict as verdict_mod
 from .collectors.base import ALL_COLLECTORS
-from .config import (BASIS_LABEL, CATEGORIES, INDICATORS, INDICATOR_BY_KEY, Indicator,
-                     priority_of, source_tier, is_krw_convertible, so_what)
+from .config import (BASIS_LABEL, CATEGORIES, CNN_SCORE_LABELS, INDICATORS,
+                     INDICATOR_BY_KEY, Indicator,
+                     priority_of, source_tier, is_krw_convertible, so_what,
+                     wants_risk_metrics)
 
 # 빈도별 신선도 임계(시간) — 초과 시 'stale' 경고. 월별은 발표주기 고려해 넉넉히.
 _STALE_HOURS = {"D": 24 * 3, "W": 24 * 10, "M": 24 * 55}
@@ -171,7 +173,8 @@ def _indicator_view(ind: Indicator, obs: dict, rates: Optional[dict] = None) -> 
         change_sub_fmt = f"{change:+,.{ind.decimals}f}" if change is not None else ""
 
     st = _staleness(row.get("as_of"), ind.freq) if ok else None
-    enr = (stats_mod.enrich(ind.key, value, ind.freq, unit=ind.unit) if ok
+    enr = (stats_mod.enrich(ind.key, value, ind.freq, unit=ind.unit,
+                            risk_ok=wants_risk_metrics(ind.key)) if ok
            else {"ctx": None, "momentum": None, "risk": None})
     ctx, mom, risk = enr["ctx"], enr["momentum"], enr.get("risk")
 
@@ -298,6 +301,66 @@ def _calendar_view(rows: list[dict]) -> list[dict]:
         e["surprise"] = {"dir": s["dir"], "label": _SURP_LABEL[s["dir"]]} if s else None
         out.append(e)
     return out
+
+
+# ── CNN 공포·탐욕 병기 패널 ──
+# 자체 regime 점수와 CNN 점수를 나란히 두고 '괴리'를 보여준다. CNN 을 regime 신호로
+# 편입하지 않는 이유: VIX·주가추세·섹터폭이 양쪽 계산에 겹쳐 같은 정보에 이중 가중이 걸린다.
+# 독립 기준선으로 남겨야 자체 점수를 검증하는 데 쓸 수 있다.
+_FNG_LEVELS = ((25, "극단적 공포", "bad"), (45, "공포", "warn"), (55, "중립", "neutral"),
+               (75, "탐욕", "good"), (101, "극단적 탐욕", "warn"))
+
+# 괴리를 '신호'로 볼 최소 폭(포인트). 두 지표의 구성이 달라 이 정도는 상시 벌어진다.
+_FNG_GAP_SIGNIFICANT = 15
+
+
+def _fng_level(score: float) -> tuple[str, str]:
+    for upper, label, tone in _FNG_LEVELS:
+        if score < upper:
+            return label, tone
+    return "극단적 탐욕", "warn"
+
+
+def build_fng_panel(obs: dict, regime_score: Optional[int] = None) -> Optional[dict]:
+    """CNN 종합점수 + 구성요소 막대 + 자체 레짐과의 괴리. 데이터 없으면 None."""
+    row = obs.get("cnn_fng")
+    if not row or not row.get("ok") or row.get("value") is None:
+        return None
+    score = round(float(row["value"]))
+    label, tone = _fng_level(score)
+
+    components = []
+    for score_key, comp_label in CNN_SCORE_LABELS.items():
+        crow = obs.get(score_key)
+        if not crow or crow.get("value") is None:
+            continue
+        val = float(crow["value"])
+        components.append({
+            "name": score_key, "label": comp_label, "value": round(val, 1),
+            # regime 패널의 .rc 막대와 같은 -1~+1 규약(50 이 중립)
+            "contrib": round((val - 50.0) / 50.0, 2), "weight": None,
+        })
+    components.sort(key=lambda c: c["contrib"])
+
+    gap = gap_text = None
+    if regime_score is not None:
+        gap = regime_score - score
+        if abs(gap) < _FNG_GAP_SIGNIFICANT:
+            gap_text = "자체 지표와 시장 통념이 대체로 일치합니다."
+        elif gap > 0:
+            gap_text = (f"자체 지표가 CNN 보다 {gap}p 낙관적입니다 — "
+                        "시장이 이미 겁먹은 위험을 내 계산이 덜 반영했는지 점검하세요.")
+        else:
+            gap_text = (f"자체 지표가 CNN 보다 {abs(gap)}p 비관적입니다 — "
+                        "시장은 아직 탐욕 국면인데 내 계산만 앞서 경고 중입니다.")
+
+    return {
+        "score": score, "label": label, "tone": tone,
+        "as_of": row.get("as_of"), "stale": bool(row.get("fallback")),
+        "components": components,
+        "gap": gap, "gap_text": gap_text,
+        "gap_significant": bool(gap is not None and abs(gap) >= _FNG_GAP_SIGNIFICANT),
+    }
 
 
 def _recent_alerts(limit: int = 6) -> list[dict]:

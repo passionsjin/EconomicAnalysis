@@ -18,6 +18,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # 실네트워크 수집 점검 (결과 verify_report.json)
 .\.venv\Scripts\python.exe verify_realenv.py
 
+# CNN 공포·탐욕 5년 이력 백필 (일회성 — run.py 를 내린 상태에서)
+.\.venv\Scripts\python.exe backfill_cnn_fng.py
+
 # 페이지별 테스트 서버 (스케줄러·자동수집 비활성 -> 8000 서버와 DB 충돌 없이 공존)
 .\.venv\Scripts\python.exe run_hyundai_test.py   # 8001 /hyundai
 .\.venv\Scripts\python.exe run_shinhan_test.py   # 8002 /shinhan
@@ -40,6 +43,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **콘솔 인코딩**: 한글 Windows는 cp949라 `₩`(U+20A9)·`—` 등이 콘솔 출력 시 깨지거나 크래시. 앱 로깅/웹 렌더는 utf-8이라 무관하지만, **테스트 스크립트는 로그 문구에 ASCII 구두점만 쓰거나 stdout을 utf-8로 reconfigure**해야 한다.
 - **FRED**: 키 없으면 CSV 호스트(`fred.stlouisfed.org`), 키 있으면 공식 API(`api.stlouisfed.org`) 경유. 이 환경에서 CSV 호스트가 간헐 차단되므로 무료 `FRED_API_KEY` 설정이 안정적.
 - **ECOS**(한국은행)**는 실키 필요**(공개 'sample' 키는 10건 제한). **행수 상한을 넘기면 오래된 쪽 N건을 주고 최신을 버린다** - 조용히 값이 낡는다(실측: 5년창·상한1000 -> 1000건이 2021-01~**2025-01**에서 끊겨 최신값이 7개월 전. 상한 5000 -> 1382건 전량·당일까지). 창을 늘릴 때는 상한도 같이 올릴 것.
+- **CNN 공포·탐욕**(`collectors/cnn_fng.py`)**은 UA + `Referer` 를 둘 다 보내야 한다** — UA만이면 **418**(봇 필터)로 막힌다(`http.py` 기본 UA는 이미 브라우저 UA라 Referer만 얹으면 됨). 비공식 엔드포인트라 정책 변경 위험이 있고, 실패해도 소스 격리로 앱은 정상 동작한다. 또 **이력 배열의 꼬리는 확정값이 아니다** — 장중 실시간 값이 마지막 1~2개 *날짜 슬롯을 덮어썼다가* 마감 후 확정값으로 되돌아간다(실측: 09-04 장중 09-03 슬롯이 35.26→44.77 로 튀었다가 43.91 로 확정). 그래서 블록 `timestamp` 날짜 **이전**의 마지막 점을 직전값으로 쓴다. **`previous_close` 필드는 쓰지 말 것** — 자기 이력과 어긋난다(실측 2026-09-08: previous_close=35.23 인데 같은 응답의 09-03 확정값은 43.91. 믿으면 -4.7% 가 +18.8% 로 표시됨). 하위 계열은 0~100 점수가 아니라 **원시값**(풋/콜 0.74·VIX 14.3 등)이고, 구성요소 환산점수는 현재값 하나뿐이라 `cnnfg_score_*`(INDICATORS 미등록 키)로만 쌓는다. 상시 수집은 1년(251건)이라 5년 룩백은 `backfill_cnn_fng.py`를 **한 번** 돌려 채운다(2021-01-04 이전 시작일은 500).
 - **브리핑 생성은 100% 출력(decode) 바운드**로 ~130-170s 소요(입력 프롬프트 크기는 무관 - prefill은 사실상 공짜). `LLM_TIMEOUT` 기본 300s. 프롬프트 트리밍으로는 가속되지 않으니 시도하지 말 것.
 - **대량 DB 쓰기는 명시 트랜잭션 필수**: `db.py`가 `isolation_level=None`(autocommit)이라 `executemany`를 그냥 돌리면 행마다 커밋해 수십 초 걸린다. `upsert_history`/`save_observations`는 `BEGIN IMMEDIATE`/`COMMIT`로 묶여 있음(367x 차이).
 
@@ -49,7 +53,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### SSOT: 지표 레지스트리 (`app/config.py`)
 전 계층이 공유하는 단일 출처. `INDICATORS: list[Indicator]`에 한 줄 추가하면 수집·저장·통계·화면에 자동 반영된다. `Indicator`의 핵심 필드:
-- `source`: `"yahoo"` | `"fred"` | `"ecos"` | `"derived"` - 어느 수집기가 처리할지 결정.
+- `source`: `"yahoo"` | `"fred"` | `"ecos"` | `"cnn"` | `"derived"` - 어느 수집기가 처리할지 결정.
 - `derived=(base_key, op, key, op, key, ...)`: 파생지표. `pipeline._compute_derived`가 피연산 지표로부터 N항 가감/`*`/`/`로 계산(공통 날짜 교집합에서만). 예) 실질금리 = `us10y - us_be10y`, 순유동성 = `us_walcl - us_rrp - us_tga`.
 - `transform="yoy"`: FRED/ECOS 지수 시리즈를 전년동월비 %로 변환.
 - `scale`: 원시값 배율(FRED 단위 정규화 예 백만$->조$=1e-6; 비율 가독화 x1000). **FRED 단위가 시리즈마다 제각각이라 함정** - WALCL=백만$·RRP=십억$·TGA=백만$·M2=십억$.
@@ -57,7 +61,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `ccy`: 비USD 자산의 호가 통화(원화 환산용). `priority_of()`/`source_tier()`/`so_what()`/`is_krw_convertible()`이 이 레지스트리 위에서 화면 강조·툴팁·환산 대상을 결정.
 
 ### Collectors (`app/collectors/`)
-`Collector` ABC(`base.py`)를 상속. `collect()`는 **예외를 던지지 않고** `CollectResult` 반환 - `run()` 래퍼가 타이밍·예외를 잡아 항상 health가 채워진 결과를 보장한다(개별 소스 실패 격리의 핵심). `ALL_COLLECTORS`가 레지스트리. markets=Yahoo chart API, fred=FRED, ecos=한국은행, news=RSS, calendar=ForexFactory.
+`Collector` ABC(`base.py`)를 상속. `collect()`는 **예외를 던지지 않고** `CollectResult` 반환 - `run()` 래퍼가 타이밍·예외를 잡아 항상 health가 채워진 결과를 보장한다(개별 소스 실패 격리의 핵심). `ALL_COLLECTORS`가 레지스트리. markets=Yahoo chart API, fred=FRED, ecos=한국은행, cnn=CNN 공포·탐욕, news=RSS, calendar=ForexFactory.
 
 ### Pipeline (`app/pipeline.py`)
 `run_collection()`이 진입점. `_lock`(threading)으로 중복 실행 방지, `_status` dict로 API/스케줄러가 상태 공유. 5단계: `[1/5]` 수집기 병렬(ThreadPoolExecutor) -> `[2/5]` 파생 계산 -> `[3/5]` 저장 + 장애 에스컬레이션(`source_events`, 연속실패 1/3/6/12/24회에만 기록) -> `[4/5]` 브리핑 생성 -> `[5/5]` 저장 + 현대차 갱신 + prune. 예외 시 미완성 스냅샷(finished_utc=NULL)을 삭제해 고스트 방지. `start_scheduler()`는 UTC cron(`COLLECT_MINUTE`).

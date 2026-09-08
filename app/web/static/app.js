@@ -229,6 +229,34 @@ async function renderCorrelations() {
   el.innerHTML = html;
 }
 
+/* ── CNN 공포·탐욕 병기 — 자체 점수의 외부 대조군 ── */
+function renderFng(f, regimeScore) {
+  const el = document.getElementById("fng-panel");
+  if (!el) return;
+  if (!f || f.score === null || f.score === undefined) { el.innerHTML = ""; return; }
+  const color = TONE[f.tone] || TONE.neutral;
+  const stale = f.stale ? ' <span class="muted">(직전값)</span>' : "";
+  el.innerHTML = `
+    <div class="fng-head">
+      <span class="fng-name">CNN 공포·탐욕</span>
+      <span class="fng-score" style="color:${color}">${f.score}<small>/100</small></span>
+      <span class="fng-label" style="color:${color}">${f.label}</span>
+      <div class="regime-gauge fng-gauge"><span style="width:${f.score}%;background:${color}"></span><i></i></div>
+      <span class="muted fng-cmp">자체 ${regimeScore ?? "—"}</span>
+    </div>
+    ${f.gap_text ? `<div class="fng-gap ${f.gap_significant ? "sig" : "muted"}">${f.gap_text}${stale}</div>` : ""}
+    <div class="regime-comp fng-comp"></div>`;
+  const comp = el.querySelector(".fng-comp");
+  (f.components || []).forEach((c) => {
+    const pos = c.contrib >= 0, w = Math.min(Math.abs(c.contrib), 1) * 50;
+    comp.insertAdjacentHTML("beforeend",
+      `<div class="rc" title="${c.label}: CNN 환산점수 ${c.value}/100">
+         <span class="rc-l">${c.label}</span>
+         <span class="rc-bar"><b class="${pos ? "pos" : "neg"}" style="width:${w}%;${pos ? "left:50%" : "right:50%"}"></b></span>
+       </div>`);
+  });
+}
+
 /* ── 시장 분위기(위험선호 점수) 패널 ── */
 async function renderRegime() {
   const el = document.getElementById("regime-panel");
@@ -260,6 +288,7 @@ async function renderRegime() {
          <span class="rc-bar"><b class="${pos ? "pos" : "neg"}" style="width:${w}%;${pos ? "left:50%" : "right:50%"}"></b></span>
        </div>`);
   });
+  renderFng(j.fng, cur.score);
   const cv = document.getElementById("regime-spark");
   if (cv && hist.length > 1 && window.Chart) {
     new Chart(cv, {

@@ -364,6 +364,13 @@ def build_fng_panel(obs: dict, regime_score: Optional[int] = None) -> Optional[d
     }
 
 
+def _safe_fng(obs: dict, regime_score: Optional[int]) -> Optional[dict]:
+    try:
+        return build_fng_panel(obs, regime_score)
+    except Exception:  # noqa: BLE001 - 병기 칩 실패가 대시보드 렌더를 막지 않게
+        return None
+
+
 def _recent_alerts(limit: int = 6) -> list[dict]:
     out = []
     for e in repo.recent_source_events(limit):
@@ -424,6 +431,8 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
         "briefing_cached": briefing_cached,
         "briefing_reused": briefing_reused and briefing_cached,
         "regime": regime,
+        # 상단 신호등의 CNN 병기 칩 — 같은 스냅샷 관측값이라 과거 리포트에서도 시점이 맞는다
+        "fng": _safe_fng(obs, (regime or {}).get("score")),
         "alerts": _recent_alerts(),
         # 오버레이는 현재 history 기준 → 과거 스냅샷 리포트엔 부적합(시점 불일치)하므로 라이브에서만
         "overlays": overlays_mod.build_overlays() if snapshot_id is None else None,

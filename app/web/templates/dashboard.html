@@ -78,6 +78,8 @@
     <div class="sig-sub">위험선호 <b>{{ rg.score }}</b>/100
       {% if rg.delta is not none %} · 어제 대비 <span class="sig-delta {{ 'up' if rg.delta > 0 else 'down' if rg.delta < 0 else '' }}">{{ '%+d'|format(rg.delta) }}</span>{% endif %}
       {% if rg.short and rg.short not in rg.stance %} · {{ rg.short }}{% endif %}
+      {% if d.fng %}{% set f = d.fng %}<span class="sig-fng {{ f.tone }}{% if f.gap_significant %} gap{% endif %}"
+        title="CNN 공포·탐욕(외부 기준선) {{ f.score }}/100 · {{ f.label }}{% if f.gap_text %} — {{ f.gap_text }}{% endif %}{% if f.stale %} (직전값){% endif %}">CNN {{ f.label }} <b>{{ f.score }}</b>{% if f.gap_significant %} <i>자체와 {{ f.gap|abs }}p 차</i>{% endif %}</span>{% endif %}
     </div>
     {% if rg.drivers %}<div class="sig-drivers">동인: {{ rg.drivers[:3]|join(' · ') }}</div>{% endif %}
   </div>

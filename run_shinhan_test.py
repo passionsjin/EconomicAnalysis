@@ -18,7 +18,7 @@ from app import pipeline as _pl  # noqa: E402
 
 _pl.start_scheduler   = lambda: type("_FakeSched", (), {"running": False})()
 _pl.shutdown_scheduler = lambda: None
-_pl.trigger_async      = lambda: False
+_pl.trigger_async      = lambda **_: False
 
 # ── 서버 기동 ─────────────────────────────────────────────────────────────
 import uvicorn  # noqa: E402

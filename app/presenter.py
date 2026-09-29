@@ -7,6 +7,7 @@ from typing import Optional
 from . import repository as repo
 from .analysis import alerts as alerts_mod
 from .analysis import allocation as allocation_mod
+from .analysis.briefing import BRIEF_SKIP_NOTE
 from .analysis import calendar_util
 from .analysis import flows as flows_mod
 from .analysis import overlays as overlays_mod
@@ -378,7 +379,7 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
     snap = repo.get_snapshot(snapshot_id) if snapshot_id else repo.latest_snapshot()
     if not snap:
         return {"empty": True, "groups": [], "health": [], "news": [],
-                "calendar": [], "briefing": None, "briefing_cached": False,
+                "calendar": [], "briefing": None, "briefing_cached": False, "briefing_reused": False,
                 "snapshot": None, "regime": None, "alerts": [], "overlays": None,
                 "risk_alerts": None, "allocation": None, "holdable": [], "verdict": None}
 
@@ -388,10 +389,13 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
     # 브리핑 캐시 폴백: 현재 스냅샷 브리핑이 없거나 실패면 최근 성공 브리핑 표시
     cur_brief = repo.get_briefing_for_snapshot(sid)
     briefing_cached = False
+    # 변화가 작아 재생성을 건너뛴 회차 — '실패'가 아니라 직전 브리핑이 여전히 유효하다는 뜻
+    briefing_reused = bool(cur_brief) and cur_brief.get("error") == BRIEF_SKIP_NOTE
     if cur_brief and cur_brief.get("ok"):
         briefing = cur_brief
     else:
-        fb = repo.latest_briefing()
+        # 과거 리포트 조회 시 그 시점 이후 브리핑을 끌어오지 않게 sid 이하에서만 찾는다
+        fb = repo.latest_briefing(max_snapshot_id=sid)
         if fb and (not cur_brief or fb.get("id") != cur_brief.get("id")):
             briefing, briefing_cached = fb, True
         else:
@@ -418,6 +422,7 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
         "calendar": _calendar_view(repo.upcoming_calendar(30)),
         "briefing": briefing,
         "briefing_cached": briefing_cached,
+        "briefing_reused": briefing_reused and briefing_cached,
         "regime": regime,
         "alerts": _recent_alerts(),
         # 오버레이는 현재 history 기준 → 과거 스냅샷 리포트엔 부적합(시점 불일치)하므로 라이브에서만

@@ -45,6 +45,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **ECOS**(한국은행)**는 실키 필요**(공개 'sample' 키는 10건 제한). **행수 상한을 넘기면 오래된 쪽 N건을 주고 최신을 버린다** - 조용히 값이 낡는다(실측: 5년창·상한1000 -> 1000건이 2021-01~**2025-01**에서 끊겨 최신값이 7개월 전. 상한 5000 -> 1382건 전량·당일까지). 창을 늘릴 때는 상한도 같이 올릴 것.
 - **CNN 공포·탐욕**(`collectors/cnn_fng.py`)**은 UA + `Referer` 를 둘 다 보내야 한다** — UA만이면 **418**(봇 필터)로 막힌다(`http.py` 기본 UA는 이미 브라우저 UA라 Referer만 얹으면 됨). 비공식 엔드포인트라 정책 변경 위험이 있고, 실패해도 소스 격리로 앱은 정상 동작한다. 또 **이력 배열의 꼬리는 확정값이 아니다** — 장중 실시간 값이 마지막 1~2개 *날짜 슬롯을 덮어썼다가* 마감 후 확정값으로 되돌아간다(실측: 09-04 장중 09-03 슬롯이 35.26→44.77 로 튀었다가 43.91 로 확정). 그래서 블록 `timestamp` 날짜 **이전**의 마지막 점을 직전값으로 쓴다. **`previous_close` 필드는 쓰지 말 것** — 자기 이력과 어긋난다(실측 2026-09-08: previous_close=35.23 인데 같은 응답의 09-03 확정값은 43.91. 믿으면 -4.7% 가 +18.8% 로 표시됨). 하위 계열은 0~100 점수가 아니라 **원시값**(풋/콜 0.74·VIX 14.3 등)이고, 구성요소 환산점수는 현재값 하나뿐이라 `cnnfg_score_*`(INDICATORS 미등록 키)로만 쌓는다. 상시 수집은 1년(251건)이라 5년 룩백은 `backfill_cnn_fng.py`를 **한 번** 돌려 채운다(2021-01-04 이전 시작일은 500).
 - **브리핑 생성은 100% 출력(decode) 바운드**로 ~130-170s 소요(입력 프롬프트 크기는 무관 - prefill은 사실상 공짜). `LLM_TIMEOUT` 기본 300s. 프롬프트 트리밍으로는 가속되지 않으니 시도하지 말 것.
+- **브리핑은 매시간 새로 쓰지 않는다.** `pipeline._should_regenerate`가 직전 *성공 브리핑* 대비 핵심 지표 변화(지수 0.5%·금리 0.05%p·VIX 5%·BTC 2%·WTI 1.5%)·레짐 전환·**새 거래 세션**(코스피/S&P500 시세 as_of 날짜가 바뀜)·**고영향 발표 예정시각 경과**·경과시간(`BRIEF_MAX_AGE_H`, 기본 6h)을 보고 판단한다. 발표 조건에 `actual` 을 요구하면 안 된다 - ForexFactory 피드는 지난 고영향 발표 189건 중 actual 이 채워진 게 0건이었다. 생략 회차는 `briefings`에 `ok=0, error=BRIEF_SKIP_NOTE` 행을 남기고 화면은 직전 브리핑을 '변화 미미 · 직전 브리핑 유지'로 보여준다(실측 14일 기준 약 2/3 생략). 수동 `/api/collect`는 항상 새로 쓴다.
+- **인용 수치점검(`briefing._citation_audit`) 결과는 본문이 아니라 `briefings.error`(메타줄)에 남긴다.** 라벨 뒤 첫 수치만 보며 나열·괄호·부호·기간/순위 꼬리·임계어('VIX 20 돌파') 문맥은 인용으로 치지 않는다. 규칙을 바꾸면 저장된 브리핑 전체에 재적용해 오탐률을 확인할 것(개편 전 34% → 0.7%).
 - **대량 DB 쓰기는 명시 트랜잭션 필수**: `db.py`가 `isolation_level=None`(autocommit)이라 `executemany`를 그냥 돌리면 행마다 커밋해 수십 초 걸린다. `upsert_history`/`save_observations`는 `BEGIN IMMEDIATE`/`COMMIT`로 묶여 있음(367x 차이).
 
 ## Architecture
@@ -87,4 +89,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `web/`: Jinja2 템플릿 + 정적(app.js/style.css). **서버사이드 렌더 우선(JS0)** - 대부분 화면은 Jinja로 그리고 JS는 차트·토글·포트폴리오 계산만.
 
 ## Config (.env, 전부 선택)
-`COLLECT_MINUTE`(cron 분) · `LLM_PROVIDER`(claude|gemini) · `CLAUDE_MODEL`/`CLAUDE_BIN` · `GEMINI_API_KEY`/`GEMINI_MODEL` · `FRED_API_KEY` · `ECOS_API_KEY` · `HISTORY_POINTS`(백분위 룩백 상한 겸용) · `LLM_TIMEOUT`. `.env.example` 참고.
+`COLLECT_MINUTE`(cron 분) · `LLM_PROVIDER`(claude|gemini) · `CLAUDE_MODEL`/`CLAUDE_BIN` · `GEMINI_API_KEY`/`GEMINI_MODEL` · `FRED_API_KEY` · `ECOS_API_KEY` · `HISTORY_POINTS`(백분위 룩백 상한 겸용) · `LLM_TIMEOUT` · `BRIEF_MAX_AGE_H`(브리핑 재생성 최대 간격). `.env.example` 참고.

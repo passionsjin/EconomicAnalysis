@@ -282,11 +282,19 @@ def get_briefing_for_snapshot(snapshot_id: int) -> Optional[dict]:
         return dict(r) if r else None
 
 
-def latest_briefing() -> Optional[dict]:
+def latest_briefing(max_snapshot_id: Optional[int] = None) -> Optional[dict]:
+    """최근 성공 브리핑. max_snapshot_id 가 있으면 그 스냅샷 '이하'에서만 찾는다
+    (과거 리포트 조회·직전 브리핑 대비 계산이 미래 브리핑을 집지 않게)."""
     with get_con() as con:
-        r = con.execute(
-            "SELECT * FROM briefings WHERE ok=1 ORDER BY id DESC LIMIT 1"
-        ).fetchone()
+        if max_snapshot_id is None:
+            r = con.execute(
+                "SELECT * FROM briefings WHERE ok=1 ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+        else:
+            r = con.execute(
+                "SELECT * FROM briefings WHERE ok=1 AND snapshot_id<=? ORDER BY id DESC LIMIT 1",
+                (max_snapshot_id,),
+            ).fetchone()
         return dict(r) if r else None
 
 
@@ -340,17 +348,6 @@ def get_series_batch(keys: list[str], points: int = 60) -> dict[str, list[dict]]
             ).fetchall()
             out[key] = [{"date": r["date"], "value": r["value"]} for r in reversed(rows)]
     return out
-
-
-def prior_finished_snapshot(before_id: int) -> Optional[dict]:
-    """주어진 스냅샷 직전의 완료 스냅샷(직전 브리핑 delta 계산용)."""
-    with get_con() as con:
-        r = con.execute(
-            "SELECT * FROM snapshots WHERE finished_utc IS NOT NULL AND id < ? "
-            "ORDER BY id DESC LIMIT 1",
-            (before_id,),
-        ).fetchone()
-        return dict(r) if r else None
 
 
 # ── 소스 장애 이벤트 ──────────────────────────────────────────

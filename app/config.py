@@ -66,6 +66,8 @@ class Settings:
     claude_bin: str = os.getenv("CLAUDE_BIN", "").strip()
     claude_model: str = os.getenv("CLAUDE_MODEL", "").strip()
     llm_timeout: int = _i("LLM_TIMEOUT", 300)   # 큰 프롬프트 브리핑이 ~130-170s 걸려 180은 빡빡
+    # 의미 있는 변화가 없으면 브리핑 재생성을 건너뛰되, 직전 브리핑이 이 시간보다 오래되면 새로 쓴다
+    brief_max_age_h: int = _i("BRIEF_MAX_AGE_H", 6)
 
     # Gemini(provider=gemini 일 때). 무료 AI Studio 키(?key=) 방식.
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "").strip()

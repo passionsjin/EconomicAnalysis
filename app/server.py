@@ -252,7 +252,7 @@ def api_shinhan():
 
 @app.post("/api/collect")
 def api_collect():
-    started = pipeline.trigger_async()
+    started = pipeline.trigger_async(force_briefing=True)   # 수동 수집은 변화가 작아도 새로 작성
     return {"started": started, "reason": None if started else "이미 수집 진행 중"}
 
 

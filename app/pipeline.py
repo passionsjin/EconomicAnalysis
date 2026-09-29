@@ -23,7 +23,7 @@ from .analysis import translate as translate_mod
 from .collectors.base import ALL_COLLECTORS
 from .config import settings, INDICATORS, INDICATOR_BY_KEY
 from .logging_setup import logger
-from .models import CalendarEvent, NewsItem, Quote
+from .models import Briefing, CalendarEvent, NewsItem, Quote
 
 KST = timezone(timedelta(hours=9))
 
@@ -172,24 +172,97 @@ def _escalate_failures(healths, ts_utc: str) -> None:
 
 
 def _prior_delta(snapshot_id: int, quotes: dict[str, Quote]) -> dict | None:
-    """직전 완료 스냅샷 대비 핵심 지표 변화 + 직전 브리핑 심리/헤드라인."""
-    prior = repo.prior_finished_snapshot(snapshot_id)
-    if not prior:
+    """직전 '성공 브리핑' 시점 대비 핵심 지표 변화 + 그 브리핑의 심리/헤드라인.
+
+    기준은 직전 스냅샷이 아니라 직전 브리핑이다 — 재생성을 건너뛴 회차가 끼면 시간당 작은
+    변화만 보다가 누적 변화를 영영 놓치기 때문(프롬프트의 '직전 브리핑 대비'와도 일치).
+    """
+    prev_brief = repo.latest_briefing(max_snapshot_id=snapshot_id - 1)
+    if not prev_brief:
         return None
-    prev_obs = repo.get_observations(prior["id"])
-    prev_brief = repo.get_briefing_for_snapshot(prior["id"]) or {}
+    prev_snap = repo.get_snapshot(prev_brief["snapshot_id"]) or {}
+    prev_obs = repo.get_observations(prev_brief["snapshot_id"])
     deltas = []
     for k in _DELTA_KEYS:
         cur, po = quotes.get(k), prev_obs.get(k)
-        if not cur or not cur.ok or cur.value is None or not po or po.get("value") is None:
+        if (not cur or not cur.ok or cur.fallback or cur.value is None
+                or not po or po.get("value") is None):
             continue
         ind = INDICATOR_BY_KEY.get(k)
-        deltas.append({"label": ind.label if ind else k, "unit": ind.unit if ind else "",
-                       "cur": cur.value, "prev": po["value"], "diff": cur.value - po["value"]})
-    return {"prev_ts": prior["finished_utc"],
+        deltas.append({"key": k, "label": ind.label if ind else k, "unit": ind.unit if ind else "",
+                       "cur": cur.value, "prev": po["value"], "diff": cur.value - po["value"],
+                       "as_of": cur.as_of, "prev_as_of": po.get("as_of")})
+    return {"prev_ts": prev_brief["ts_utc"],
             "prev_sentiment": prev_brief.get("sentiment"),
             "prev_headline": prev_brief.get("headline"),
+            "prev_regime": prev_snap.get("regime_short"),
             "deltas": deltas}
+
+
+# 재생성 트리거 임계 — 이만큼 움직이지 않았으면 직전 브리핑 내용이 여전히 유효하다고 본다
+_REGEN_PCT = 0.5          # 가격형 지표 %변화(기본)
+# 평소 출렁임이 큰 자산은 별도 임계 — 기본값이면 WTI 하나가 재생성 사유의 40%를 차지했다
+_REGEN_PCT_BY_KEY = {"vix": 5.0, "btc": 2.0, "wti": 1.5}
+_REGEN_PP = 0.05          # 금리·스프레드(unit='%') %p 변화
+# 시세 기준일(as_of 날짜, UTC)이 바뀌면 새 거래 세션이 열린 것 — 변화폭과 무관하게 새로 쓴다.
+# (08:59 에 쓴 브리핑이 09:00 코스피 개장 후에도 '어제 -2.7%' 를 계속 말하던 문제.)
+# 두 시장 모두 정규장이 UTC 하루 안에 들어가 날짜 비교만으로 충분하고, 휴장일엔 as_of 가
+# 안 바뀌어 저절로 조용하다.
+_SESSION_KEYS = {"kospi": "한국장", "sp500": "미국장"}
+# 발표 예정 시각 뒤 이만큼 지난 첫 수집에서 반영 — 발표 직후엔 시장 반응이 아직 시세에 없다
+_EVENT_LAG = timedelta(minutes=5)
+
+
+def _should_regenerate(prior: dict | None, regime_short: str | None,
+                       events: list[CalendarEvent], now: datetime,
+                       max_age_h: float) -> tuple[bool, str]:
+    """브리핑을 새로 쓸지 판정 → (여부, 사유). 순수 함수.
+
+    매시간 수집마다 ~150s 짜리 LLM 호출로 거의 같은 헤드라인을 다시 쓰던 낭비를 막는다.
+    """
+    if not prior:
+        return True, "직전 브리핑 없음"
+    try:
+        prev_dt = datetime.fromisoformat((prior.get("prev_ts") or "").replace("Z", "+00:00"))
+        if prev_dt.tzinfo is None:
+            prev_dt = prev_dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return True, "직전 브리핑 시각 불명"
+    age_h = (now - prev_dt).total_seconds() / 3600
+    if age_h >= max_age_h:
+        return True, f"직전 브리핑 {age_h:.0f}h 경과"
+    if regime_short and prior.get("prev_regime") and regime_short != prior["prev_regime"]:
+        return True, f"레짐 전환({prior['prev_regime']}→{regime_short})"
+    for d in prior.get("deltas") or []:
+        if d.get("key") in _SESSION_KEYS:
+            cur_day, prev_day = (d.get("as_of") or "")[:10], (d.get("prev_as_of") or "")[:10]
+            if cur_day and prev_day and cur_day > prev_day:
+                return True, f"{_SESSION_KEYS[d['key']]} 새 세션({cur_day})"
+    for d in prior.get("deltas") or []:
+        if d.get("unit") == "%":
+            if abs(d["diff"]) >= _REGEN_PP:
+                return True, f"{d['label']} {d['diff']:+.2f}%p"
+            continue
+        base = abs(d.get("prev") or 0)
+        if not base:
+            continue
+        pct = d["diff"] / base * 100
+        if abs(pct) >= _REGEN_PCT_BY_KEY.get(d.get("key"), _REGEN_PCT):
+            return True, f"{d['label']} {pct:+.2f}%"
+    # 실제치(actual) 유무는 보지 않는다 — ForexFactory 피드는 실측상 지난 고영향 발표 189건 중
+    # actual 이 채워진 게 0건이라, 그걸 조건으로 걸면 FOMC·BOJ 결정에도 영영 발동하지 않는다.
+    for e in events:
+        if (e.impact or "").lower() != "high" or not e.date:
+            continue
+        try:
+            ed = datetime.fromisoformat(e.date.replace("Z", "+00:00"))
+            if ed.tzinfo is None:
+                ed = ed.replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if prev_dt < ed + _EVENT_LAG <= now:
+            return True, f"주요 발표 시각 경과({e.country} {e.title[:30]})"
+    return False, "의미 있는 변화 없음"
 
 _lock = threading.Lock()          # 수집 중복 실행 방지(권위 있는 가드)
 _status_lock = threading.Lock()   # _status 공유 dict 접근 보호
@@ -238,15 +311,16 @@ def scheduler_health() -> dict:
     }
 
 
-def _collect_body() -> dict:
+def _collect_body(force_briefing: bool = False) -> dict:
     """락을 이미 보유한 상태에서 수집 본체를 실행."""
     started = datetime.now(timezone.utc)
     _set_status(running=True, last_started=started.isoformat(), last_error=None)
     t0 = time.monotonic()
     try:
-        result = _do_run(started)
+        result = _do_run(started, force_briefing)
         if "error" not in result:
-            brief = "OK" if result.get("briefing_ok") else f"실패({result.get('briefing_error')})"
+            brief = ("OK" if result.get("briefing_ok") else "생략(직전 유지)"
+                     if result.get("briefing_skipped") else f"실패({result.get('briefing_error')})")
             logger.info("수집 완료 - snapshot #%s | ok=%s fail=%s | 브리핑 %s | %.1fs",
                         result.get("snapshot_id"), result.get("ok"), result.get("fail"),
                         brief, time.monotonic() - t0)
@@ -271,12 +345,12 @@ def run_collection() -> dict:
         _lock.release()
 
 
-def _do_run(started: datetime) -> dict:
+def _do_run(started: datetime, force_briefing: bool = False) -> dict:
     ts_utc = started.isoformat()
     snapshot_id = repo.create_snapshot(ts_utc)
     logger.info("수집 시작 - snapshot #%d (수집기 %d개)", snapshot_id, len(ALL_COLLECTORS))
     try:
-        return _do_run_inner(started, ts_utc, snapshot_id)
+        return _do_run_inner(started, ts_utc, snapshot_id, force_briefing)
     except Exception:
         # 미완성(finished_utc=NULL) 고스트 스냅샷 + 부분 자식행 정리
         try:
@@ -286,7 +360,8 @@ def _do_run(started: datetime) -> dict:
         raise
 
 
-def _do_run_inner(started: datetime, ts_utc: str, snapshot_id: int) -> dict:
+def _do_run_inner(started: datetime, ts_utc: str, snapshot_id: int,
+                   force_briefing: bool = False) -> dict:
     # 1) 모든 수집기 병렬 실행 - 끝나는 대로 소스별 결과를 로그(라이브 진행 표시)
     n_src = len(ALL_COLLECTORS)
     logger.info("  [1/5] 소스 수집 - %d개 병렬 시작...", n_src)
@@ -365,17 +440,28 @@ def _do_run_inner(started: datetime, ts_utc: str, snapshot_id: int) -> dict:
                 repo.save_regime_score(snapshot_id, r["score"], r.get("tone", ""), r.get("short", ""))
             except Exception:  # noqa: BLE001 — 점수 기록 실패가 수집을 막지 않게
                 pass
-    logger.info("  [4/5] 데이터 저장 완료(%.1fs) - 브리핑 생성 중 (%s, 최대 %ds)...",
-                time.monotonic() - t_stage, llm_mod.engine_label(), settings.llm_timeout)
-    t_brief = time.monotonic()
-    brief = briefing_mod.generate(quotes, news, events, now_kst,
-                                  prior=prior_ctx, regime=regime_snap, now_utc=started)
-    if brief.ok:
-        logger.info("  [5/5] 브리핑 OK - %s / %s (%.1fs)",
-                    brief.model, brief.sentiment, time.monotonic() - t_brief)
+    regen, why = (True, "수동 수집") if force_briefing else _should_regenerate(
+        prior_ctx, ((regime_snap or {}).get("regime") or {}).get("short"),
+        events, started, settings.brief_max_age_h)
+    if not regen:
+        # 건너뛴 회차도 행을 남긴다(ok=0 + 표식) → presenter 가 직전 성공 브리핑으로 폴백하며
+        # '실패'가 아니라 '유지'로 표시할 수 있게.
+        logger.info("  [4/5] 데이터 저장 완료(%.1fs) - 브리핑 생략(%s)",
+                    time.monotonic() - t_stage, why)
+        brief = Briefing(ok=False, error=briefing_mod.BRIEF_SKIP_NOTE)
     else:
-        logger.warning("  [5/5] 브리핑 실패 - %s (%.1fs)", brief.error, time.monotonic() - t_brief)
+        logger.info("  [4/5] 데이터 저장 완료(%.1fs) - 브리핑 생성 중 (%s, 사유: %s, 최대 %ds)...",
+                    time.monotonic() - t_stage, llm_mod.engine_label(), why, settings.llm_timeout)
+        t_brief = time.monotonic()
+        brief = briefing_mod.generate(quotes, news, events, now_kst,
+                                      prior=prior_ctx, regime=regime_snap, now_utc=started)
+        if brief.ok:
+            logger.info("  [5/5] 브리핑 OK - %s / %s (%.1fs)",
+                        brief.model, brief.sentiment, time.monotonic() - t_brief)
+        else:
+            logger.warning("  [5/5] 브리핑 실패 - %s (%.1fs)", brief.error, time.monotonic() - t_brief)
     repo.save_briefing(snapshot_id, datetime.now(timezone.utc).isoformat(), brief)
+    brief_skipped = not regen
 
     # 현대차 실시간 데이터 갱신 (실패해도 수집을 막지 않게)
     try:
@@ -396,17 +482,18 @@ def _do_run_inner(started: datetime, ts_utc: str, snapshot_id: int) -> dict:
         pass
 
     _set_status(last_snapshot_id=snapshot_id, last_ok=ok_count, last_fail=fail_count,
-                last_error=None if brief.ok else f"briefing: {brief.error}")
+                last_error=None if brief.ok or brief_skipped else f"briefing: {brief.error}")
     return {
         "snapshot_id": snapshot_id,
         "ok": ok_count,
         "fail": fail_count,
         "briefing_ok": brief.ok,
+        "briefing_skipped": brief_skipped,
         "briefing_error": brief.error,
     }
 
 
-def trigger_async() -> bool:
+def trigger_async(force_briefing: bool = False) -> bool:
     """API/스타트업에서 비동기 수집 시작. 실제로 시작됐으면 True, 이미 진행 중이면 False.
 
     요청 스레드에서 동기적으로 락을 잡아 TOCTOU 없이 정확한 시작 여부를 반환하고,
@@ -419,7 +506,7 @@ def trigger_async() -> bool:
 
     def _runner():
         try:
-            _collect_body()
+            _collect_body(force_briefing)
         finally:
             _lock.release()
 

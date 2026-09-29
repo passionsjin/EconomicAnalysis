@@ -181,7 +181,8 @@
     <div class="brief-head">
       <span class="badge {{ s[1] }}">{{ s[0] }}</span>
       <h2>{{ d.briefing.headline or '시황 브리핑' }}</h2>
-      {% if d.briefing_cached %}<span class="pill info" title="이번 수집의 브리핑이 아직 생성 중이거나 실패해, 직전에 작성된 브리핑을 보여주는 중입니다(지표 데이터는 최신).">직전 브리핑 표시</span>{% endif %}
+      {% if d.briefing_reused %}<span class="pill info" title="직전 브리핑 이후 주요 지표·레짐·거래 세션·주요 발표에 의미 있는 변화가 없어 새로 작성하지 않았습니다(지표 데이터는 최신). 변화가 생기거나 일정 시간이 지나면 다시 작성됩니다.">변화 미미 · 직전 브리핑 유지</span>
+      {% elif d.briefing_cached %}<span class="pill info" title="이번 수집의 브리핑이 아직 생성 중이거나 실패해, 직전에 작성된 브리핑을 보여주는 중입니다(지표 데이터는 최신).">직전 브리핑 표시</span>{% endif %}
     </div>
     {% if d.briefing.summary %}<p class="brief-summary">{{ d.briefing.summary }}</p>{% endif %}
     <details class="brief-more">

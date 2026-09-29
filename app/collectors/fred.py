@@ -21,8 +21,11 @@ from .base import Collector
 _API = "https://api.stlouisfed.org/fred/series/observations"
 _CSV = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 
-# FRED 가 네트워크에서 막히면 수집 전체가 지연되지 않도록 짧은 타임아웃 + 무재시도
+# FRED 가 네트워크에서 막히면 수집 전체가 지연되지 않도록 짧은 타임아웃.
+# API 경로는 1회 재시도: 정각 혼잡 때 21개 중 2~9개가 타임아웃으로 떨어지는데
+# 몇 분 뒤 재수집은 1~2초에 전량 성공한다(일시 혼잡). CSV 경로는 '차단'이 흔해 무재시도.
 _TIMEOUT = min(settings.request_timeout, 12)
+_API_RETRIES = 1
 
 
 def _num(v) -> Optional[float]:
@@ -39,7 +42,7 @@ def _num(v) -> Optional[float]:
 def _fetch_series(series_id: str) -> list[tuple[str, float]]:
     """[(YYYY-MM-DD, value)] 오름차순. 결측은 제외."""
     if settings.fred_api_key:
-        data = http.get_json(_API, timeout=_TIMEOUT, retries=0, params={
+        data = http.get_json(_API, timeout=_TIMEOUT, retries=_API_RETRIES, params={
             "series_id": series_id,
             "api_key": settings.fred_api_key,
             "file_type": "json",

@@ -188,7 +188,7 @@ def test_같은_점수면_최신_기사가_먼저다():
 
     out = briefing._news_block([옛것, 최신], limit=2)
 
-    assert out.splitlines()[0].endswith("again")   # 최신이 첫 줄
+    assert "steady again" in out.splitlines()[0]   #최신이 첫 줄
 
 
 # ─────────────────────── _calendar_block: 지난 발표 처리 ───────────────────────
@@ -293,3 +293,88 @@ def test_정상_인용은_통과한다():
     quotes = {"kospi": _q("kospi", 6556.35, 6870.0)}
     body = "- 코스피 6,556.35 로 마감했다."
     assert briefing._citation_audit(body, quotes) == []
+
+
+# 아래는 저장된 브리핑 954건 중 34%에 경고를 붙였던 실제 오탐 문장들이다.
+@pytest.mark.parametrize("key,value,body", [
+    ("usdkrw", 1362.26, "- 관전 지표: 원/달러, 한미 10년 금리차, 코스피 수급."),   # 나열
+    ("btc", 84187.9, "비트코인이 금·비트코인 상관(0.64)대로 동반 조정됐다."),      # 괄호 부가정보
+    ("btc", 84187.9, "금·비트코인 상관 +0.73은 두 자산이 함께 움직인다는 뜻이다."), # 부호 붙은 상관계수
+    ("gold", 4187.9, "- 금 1M -3.2%, 은 -4.3%로 약세다."),                         # 모멘텀 태그
+    ("gold", 4174.9, "- 구리/금 비율 1.521(23%ile)은 경기 둔화 신호다."),            # 비율 이름의 일부
+    ("vix", 16.66, "- 트리거: VIX 20 재돌파 여부, HY 스프레드 확대."),              # 가정·임계 수준
+    ("kospi", 6880.97, "- 코스피 3중 악재: PER 32.3배."),                         # 수사(3중)
+    ("kospi", 6023.66, "- 코스피200 선물 야간 동향을 본다."),                      # 다른 상품 이름
+    ("sp500", 7753.11, "S&P 500 5년 내 100분위 고점권을 유지했다."),               # 기간 뒤 순위
+    ("btc", 84468.0, "비트코인은 8만4천 달러대에서 등락했다."),                     # 한국어 수 단위
+])
+def test_부가정보_문맥의_숫자는_값_인용으로_보지_않는다(key, value, body):
+    quotes = {key: _q(key, value, value)}
+    assert briefing._citation_audit(body, quotes) == []
+
+
+def test_조사가_붙은_정상_인용도_점검된다():
+    """'원/달러는 1,355.95원' 이 가장 흔한 인용 형태인데, 예전엔 조사 때문에 검사 자체를 건너뛰었다."""
+    quotes = {"usdkrw": _q("usdkrw", 1355.95, 1350.0)}
+    assert briefing._citation_audit("- 원/달러는 1,355.95원으로 올랐다.", quotes) == []
+    issues = briefing._citation_audit("- 원/달러는 1,555.95원으로 올랐다.", quotes)
+    assert len(issues) == 1 and "원/달러" in issues[0]
+
+
+def test_VIX_는_짧은_호칭으로_인용해도_점검된다():
+    quotes = {"vix": _q("vix", 16.5, 16.0)}
+    assert briefing._citation_audit("- VIX 16.5로 안정적이다.", quotes) == []
+    assert len(briefing._citation_audit("- VIX 24.5로 뛰었다.", quotes)) == 1
+
+
+def test_조사가_아닌_한글이_붙으면_다른_낱말이다():
+    """'금리' 의 '금' 은 금 가격이 아니다."""
+    quotes = {"gold": _q("gold", 4187.9, 4180.0)}
+    assert briefing._citation_audit("- 금리 5.18%로 올랐다.", quotes) == []
+
+
+# ─────────────────────── 수집 실패 직전값(fallback) 표기 ───────────────────────
+
+def _fb(key: str, value: float, prev: float) -> Quote:
+    q = _q(key, value, prev)
+    q.fallback, q.as_of = True, "2026-08-11T00:00:00+00:00"
+    return q
+
+
+def test_직전값_지표는_기준일을_달고_변화를_숨긴다():
+    out = briefing._data_block({"us10y": _fb("us10y", 4.2, 4.0)})
+    row = next(l for l in out.splitlines() if INDICATOR_BY_KEY["us10y"].label in l)
+    assert "직전값·2026-08-11 기준" in row
+    assert "%p" not in row            # 옛 변화(+0.20%p)를 오늘 변화로 내보내지 않는다
+
+
+def test_직전값_지표는_수치점검에서_제외된다():
+    quotes = {"kospi": _fb("kospi", 6556.35, 6870.0)}
+    assert briefing._citation_audit("- 코스피 3,120.5 로 마감했다.", quotes) == []
+
+
+def test_CNN_하위_원시계열은_프롬프트에서_빠진다():
+    quotes = {"cnn_fng": _q("cnn_fng", 43, 40), "cnn_fng_vix": _q("cnn_fng_vix", 14.2, 14.0)}
+    out = briefing._data_block(quotes)
+    assert INDICATOR_BY_KEY["cnn_fng"].label in out
+    assert INDICATOR_BY_KEY["cnn_fng_vix"].label not in out
+
+
+def test_레짐_블록에_CNN_교차검증이_붙는다():
+    regime = {"regime": {"label": "중립/전환", "score": 51, "drivers": []}, "window": 30}
+    out = briefing._regime_block(regime, _q("cnn_fng", 43, 40))
+    assert "CNN 공포·탐욕 43/100 (공포)" in out
+
+
+def test_뉴스에_발행_후_경과시간이_붙는다():
+    now = datetime(2026, 8, 14, 12, tzinfo=timezone.utc)
+    news = [NewsItem(source="R", title="Fed signals rate cut", link="x",
+                     published="2026-08-14T07:00:00+00:00")]
+    assert "(5h 전)" in briefing._news_block(news, now_utc=now)
+
+
+# ─────────────────────── 응답 파싱 ───────────────────────
+
+def test_JSON_파싱_실패는_실패로_돌려_재시도_폴백을_탄다():
+    b = briefing._briefing_from_text("죄송합니다, 형식을 지키지 못했습니다.", "m")
+    assert b.ok is False and "파싱" in b.error

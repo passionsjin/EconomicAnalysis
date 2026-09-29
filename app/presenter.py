@@ -7,6 +7,7 @@ from typing import Optional
 from . import repository as repo
 from .analysis import alerts as alerts_mod
 from .analysis import allocation as allocation_mod
+from .analysis import calibration as calibration_mod
 from .analysis.briefing import BRIEF_SKIP_NOTE
 from .analysis import calendar_util
 from .analysis import flows as flows_mod
@@ -388,7 +389,8 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
         return {"empty": True, "groups": [], "health": [], "news": [],
                 "calendar": [], "briefing": None, "briefing_cached": False, "briefing_reused": False,
                 "snapshot": None, "regime": None, "alerts": [], "overlays": None,
-                "risk_alerts": None, "allocation": None, "holdable": [], "verdict": None}
+                "risk_alerts": None, "allocation": None, "holdable": [], "verdict": None,
+                "calibration": None}
 
     sid = snap["id"]
     obs = repo.get_observations(sid)
@@ -444,6 +446,9 @@ def build_dashboard(snapshot_id: Optional[int] = None) -> dict:
         "allocation": allocation_mod.recommend_allocation(regime) if snapshot_id is None else None,
         # 신호등+경보를 화해시킨 '오늘 한 줄 결론'(라이브에서만; 경보 의존)
         "verdict": verdict_mod.make_verdict(regime, risk_alerts) if snapshot_id is None else None,
+        # 현재 단계에서 과거 실제로 벌어진 흔들림·성과 — 점수를 타이밍으로 오독하지 않게(라이브 전용)
+        "calibration": (calibration_mod.build_calibration(
+            regime, (obs.get("cnn_fng") or {}).get("value")) if snapshot_id is None else None),
         # 포트폴리오 입력기용 보유가능 자산(정적 목록; VaR 계산은 /api/portfolio)
         "holdable": portfolio_mod.holdable_assets(),
     }

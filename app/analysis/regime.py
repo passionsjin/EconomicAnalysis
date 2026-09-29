@@ -183,25 +183,70 @@ def _composite(sig: dict[str, tuple]):
     return round(50 + 50 * wavg), wavg
 
 
+# 5단계(하한 점수, 단계키). allocation 프리셋·verdict 스탠스가 모두 이 단계키를 따른다.
+STAGES: list[tuple[int, str]] = [
+    (70, "strong_on"), (58, "on"), (43, "neutral"), (31, "off"), (0, "strong_off"),
+]
+_STAGE_VIEW = {   # 단계키 → (라벨, 짧은 표시명, 톤)
+    "strong_on": ("강한 위험선호(Strong Risk-On)", "강한 위험선호", "good"),
+    "on": ("위험선호(Risk-On)", "위험 선호", "good"),
+    "neutral": ("중립/전환", "중립", "warn"),
+    "off": ("위험회피(Risk-Off)", "위험 회피", "bad"),
+    "strong_off": ("강한 위험회피(Strong Risk-Off)", "강한 위험회피", "bad"),
+}
+_STAGE_BY_SHORT = {v[1]: k for k, v in _STAGE_VIEW.items()}
+
+# 단계 전환 여유폭(점). 원점수 단계는 5년간 274번(약 4.5일마다) 뒤집혀 권고 비중이 매주
+# 흔들렸다. 경계를 이만큼 넘어야 단계를 바꾸면 115번으로 준다(±3=161, ±5=115 실측).
+STAGE_BAND = 5
+# 히스테리시스 상태를 재구성할 과거 거래일 수(시작 단계의 영향이 사라질 만큼)
+_STAGE_SPAN = 60
+
+
+def stage_of(score: float) -> str:
+    """원점수 → 단계키(여유폭 없음)."""
+    for lo, key in STAGES:
+        if score >= lo:
+            return key
+    return "strong_off"
+
+
+def stable_stages(scores: list[float], band: int = STAGE_BAND) -> list[str]:
+    """점수열 → 히스테리시스 적용 단계열. 현재 단계의 경계를 band 이상 넘어야 바뀐다.
+
+    원점수 표시는 그대로 두고 '단계'(라벨·권고비중·스탠스)만 안정화하는 용도다.
+    """
+    out: list[str] = []
+    cur: str | None = None
+    keys = [k for _lo, k in STAGES]
+    for s in scores:
+        if cur is None:
+            cur = stage_of(s)
+        else:
+            i = keys.index(cur)
+            upper = STAGES[i - 1][0] if i > 0 else None       # 한 단계 위의 하한
+            lower = STAGES[i][0] if i < len(STAGES) - 1 else None
+            if (upper is not None and s >= upper + band) or (lower is not None and s < lower - band):
+                cur = stage_of(s)
+        out.append(cur)
+    return out
+
+
 def _classify(score: int) -> tuple[str, str, str]:
-    if score >= 70:
-        return "강한 위험선호(Strong Risk-On)", "강한 위험선호", "good"
-    if score >= 58:
-        return "위험선호(Risk-On)", "위험 선호", "good"
-    if score >= 43:
-        return "중립/전환", "중립", "warn"
-    if score >= 31:
-        return "위험회피(Risk-Off)", "위험 회피", "bad"
-    return "강한 위험회피(Strong Risk-Off)", "강한 위험회피", "bad"
+    return _STAGE_VIEW[stage_of(score)]
+
+
+def _stance_of_stage(stage: str) -> tuple[str, str]:
+    """단계 → 한눈 포지션 스탠스(공격/중립/방어) + 신호등 톤."""
+    if stage in ("strong_on", "on"):
+        return "공격적 (위험선호 우위)", "good"
+    if stage == "neutral":
+        return "중립 (관망)", "warn"
+    return "방어적 (위험회피 우위)", "bad"
 
 
 def _stance(score: int) -> tuple[str, str]:
-    """위험선호 점수 → 한눈 포지션 스탠스(공격/중립/방어) + 신호등 톤."""
-    if score >= 58:
-        return "공격적 (위험선호 우위)", "good"
-    if score >= 43:
-        return "중립 (관망)", "warn"
-    return "방어적 (위험회피 우위)", "bad"
+    return _stance_of_stage(stage_of(score))
 
 
 def _fmt_sig(name: str, v: float) -> str:
@@ -214,7 +259,7 @@ def _fmt_sig(name: str, v: float) -> str:
 
 
 def _empty_regime(window: int) -> dict:
-    return {"label": "판정 불가", "short": "판정 불가", "tone": "warn", "score": None,
+    return {"label": "판정 불가", "short": "판정 불가", "tone": "warn", "score": None, "stage": None,
             "meaning": "데이터 부족으로 시장 분위기를 계산할 수 없습니다.",
             "tip": "데이터가 더 쌓이면 표시됩니다.", "drivers": [], "components": [],
             "vix": None, "hy_spread": None, "spx_window_chg": None, "window": window}
@@ -222,7 +267,8 @@ def _empty_regime(window: int) -> dict:
 
 def detect_regime(window: int = 20) -> dict:
     """다중 신호 합성 0~100 위험선호 점수로 시장 분위기 판정(레짐 v2)."""
-    axis, aligned = _load_aligned(window, span=2)   # span=2: 직전 거래일 점수까지 산출(어제 대비)
+    # 히스테리시스 단계를 재구성하려고 최근 _STAGE_SPAN 거래일 점수를 함께 계산한다
+    axis, aligned = _load_aligned(window, span=_STAGE_SPAN)
     if not axis:
         return _empty_regime(window)
     sig = _signals_at(aligned, len(axis) - 1, window)
@@ -234,9 +280,15 @@ def detect_regime(window: int = 20) -> dict:
     if len(axis) >= 2:
         prev_score, _ = _composite(_signals_at(aligned, len(axis) - 2, window))
     delta = (score - prev_score) if prev_score is not None else None
-    stance, stance_tone = _stance(score)
 
-    label, short, tone = _classify(score)
+    path = [s for s in (_composite(_signals_at(aligned, i, window))[0]
+                        for i in range(min(window, len(axis) - 1), len(axis) - 1))
+            if s is not None]
+    stage = stable_stages(path + [score])[-1]
+    raw_stage = stage_of(score)
+    stance, stance_tone = _stance_of_stage(stage)
+
+    label, short, tone = _STAGE_VIEW[stage]
     ranked = sorted(sig.items(), key=lambda kv: abs(_SIG_WEIGHTS.get(kv[0], 0) * kv[1][0]),
                     reverse=True)
     drivers = [f"{_fmt_sig(n, v)}({'우호' if c > 0 else '비우호'})"
@@ -256,8 +308,12 @@ def detect_regime(window: int = 20) -> dict:
              "실질금리·장단기차·실물경기(CFNAI)를 합성한 0~100 위험선호 점수(50=중립, 높을수록 위험선호).")
     driver_txt = ", ".join(drivers) if drivers else "특이 동인 없음"
     tip = f"{intro}\n\n현재: {score}/100 {short} — {meaning}\n주요 동인: {driver_txt}"
+    if stage != raw_stage:
+        tip += (f"\n\n단계는 경계를 ±{STAGE_BAND}점 넘어야 바뀝니다(잦은 뒤집힘 방지) — "
+                f"점수만 보면 '{_STAGE_VIEW[raw_stage][1]}' 구간이지만 아직 '{short}' 단계를 유지합니다.")
 
     return {"label": label, "short": short, "tone": tone, "score": score,
+            "stage": stage, "raw_stage": raw_stage,
             "prev_score": prev_score, "delta": delta,
             "stance": stance, "stance_tone": stance_tone,
             "meaning": meaning, "tip": tip, "drivers": drivers, "components": components,
@@ -281,8 +337,10 @@ def stored_regime_view(snap: dict) -> dict:
     else:
         meaning = "위험 선호와 회피가 팽팽하거나 방향이 전환되는 국면."
     tip = f"이 스냅샷 시점 기록된 위험선호 점수.\n{score}/100 {short} — {meaning}"
-    stance, stance_tone = _stance(score) if score is not None else ("—", tone)
-    return {"label": short, "short": short, "tone": tone, "score": score,
+    # 기록된 표시명이 곧 그 시점의 (안정화된) 단계 — 점수로 재분류하면 히스테리시스가 풀린다
+    stage = _STAGE_BY_SHORT.get(short) or (stage_of(score) if score is not None else None)
+    stance, stance_tone = _stance_of_stage(stage) if stage else ("—", tone)
+    return {"label": short, "short": short, "tone": tone, "score": score, "stage": stage,
             "prev_score": None, "delta": None, "stance": stance, "stance_tone": stance_tone,
             "meaning": meaning, "tip": tip, "drivers": [], "components": [],
             "vix": None, "hy_spread": None, "spx_window_chg": None, "window": 20}

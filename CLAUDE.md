@@ -72,7 +72,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 수집과 분리된 순수 계산 모듈. 대부분 **추가 수집 없이** 저장된 시계열을 재활용:
 - `llm.py`: **LLM provider 추상화**. `complete()`가 claude(`claude -p` 헤드리스 - 사용자 구독 인증, 키 불필요) / gemini(REST) 백엔드를 감춘다. `LLM_PROVIDER`로 선택. JSON 파싱·재시도·인용점검은 호출부(`briefing`) 몫이라 provider 교체에 영향 없음. **LLM 관련 작업 전 `/claude-api` 스킬 참고**(모델 ID·파라미터).
 - `briefing.py`: 시황 브리핑 생성(우선순위 정렬·직전 delta·레짐·임박 발표 반영 + 출력 수치 자동검증 `_citation_audit`). 실패 시 presenter가 직전 캐시로 폴백.
-- `regime.py`: 8~9개 신호(VIX·HY·NFCI·주가추세·섹터폭·달러·실질금리·장단기차·CFNAI) 가중합성 -> 0~100 위험선호 점수 + 5단계.
+- `regime.py`: 8~9개 신호(VIX·HY·NFCI·주가추세·섹터폭·달러·실질금리·장단기차·CFNAI) 가중합성 -> 0~100 위험선호 점수 + 5단계. **단계는 히스테리시스(`STAGE_BAND` ±5점)로 안정화**한다 - 원점수 단계는 5년간 274번 뒤집혔다(±5 → 115번). 라벨·권고비중·스탠스는 `stage`, 급락 경보는 원점수를 쓴다.
+- `calibration.py`: 현재 단계·CNN 극단 구간의 과거 이후 성과(20일 내 낙폭·60일 후 수익률). **레짐 점수는 낙폭(위험 크기) 지표이지 타이밍 지표가 아니다** - 5년 소급 시 점수↓면 낙폭이 2~3배 깊지만 60일 후 수익률은 오히려 가장 높았다. 그래서 `verdict`/`allocation` 문구·비중은 '매수 금지'가 아니라 '레버리지 축소·분할'로, 주식 틸트는 45~60%로 완만하게 둔다. 이 전제를 바꾸려면 먼저 같은 소급 검증을 다시 돌릴 것.
 - `stats.py`: 백분위·z-score·모멘텀·`risk_metrics`(실현변동성·MDD·52주). `enrich()`가 freq/unit 게이트로 지표별 적용.
 - `allocation.py`: 레짐 점수 -> 5단계 자산배분 프리셋(휴리스틱, 라이브 전용).
 - `alerts.py`: 6~7개 위험 게이지 임계선 감시. 수집실패(ok=0)는 stale 오발화 방지 위해 `na` 처리.
@@ -89,4 +90,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `web/`: Jinja2 템플릿 + 정적(app.js/style.css). **서버사이드 렌더 우선(JS0)** - 대부분 화면은 Jinja로 그리고 JS는 차트·토글·포트폴리오 계산만.
 
 ## Config (.env, 전부 선택)
-`COLLECT_MINUTE`(cron 분) · `LLM_PROVIDER`(claude|gemini) · `CLAUDE_MODEL`/`CLAUDE_BIN` · `GEMINI_API_KEY`/`GEMINI_MODEL` · `FRED_API_KEY` · `ECOS_API_KEY` · `HISTORY_POINTS`(백분위 룩백 상한 겸용) · `LLM_TIMEOUT` · `BRIEF_MAX_AGE_H`(브리핑 재생성 최대 간격). `.env.example` 참고.
+`COLLECT_MINUTE`(cron 분 - **정각 0 금지**, FRED가 :00에 혼잡해 부분 실패가 잦다. 기본 운영값 7) · `LLM_PROVIDER`(claude|gemini) · `CLAUDE_MODEL`/`CLAUDE_BIN` · `GEMINI_API_KEY`/`GEMINI_MODEL` · `FRED_API_KEY` · `ECOS_API_KEY` · `HISTORY_POINTS`(백분위 룩백 상한 겸용) · `LLM_TIMEOUT` · `BRIEF_MAX_AGE_H`(브리핑 재생성 최대 간격). `.env.example` 참고.

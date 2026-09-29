@@ -452,6 +452,16 @@ body.easy-on .pctbar>em{display:none}
 .verdict.bad .vd-tag{color:var(--bad)}
 .vd-line{flex:1;min-width:180px;font-size:13px;color:#cdd6e4;line-height:1.55}
 
+/* ── 단계별 과거 성과(한 줄 결론의 근거) ── */
+.calib{display:flex;gap:10px;margin:-8px 0 16px;padding:10px 16px;border-radius:12px;
+  border:1px dashed var(--line);background:var(--bg2)}
+.cb-ico{font-size:13px;flex:none;line-height:1.6}
+.cb-body{flex:1;min-width:0}
+.cb-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;font-size:12.5px;margin-bottom:3px}
+.cb-read{color:var(--muted);font-size:12px}
+.cb-line{font-size:12.5px;color:#c2cad6;line-height:1.55}
+.cb-note{font-size:11px;color:var(--muted2);margin-top:3px}
+
 /* ── ⑨ 권고 비중 ↔ 내 보유 갭 ── */
 .al-mine{margin-top:11px;padding-top:10px;border-top:1px solid var(--line)}
 .alm-head{font-size:12px;color:var(--muted);margin-bottom:7px}

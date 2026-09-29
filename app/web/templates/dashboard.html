@@ -95,6 +95,18 @@
   <span class="vd-line">{{ d.verdict.line }}</span>
 </section>
 {% endif %}
+{% if d.calibration %}
+{% set cb = d.calibration %}
+<section class="calib" title="{{ cb.note }}">
+  <span class="cb-ico">📊</span>
+  <div class="cb-body">
+    <div class="cb-head"><b>과거엔 어땠나</b><span class="cb-read">{{ cb.reading }}</span></div>
+    <div class="cb-line">{{ cb.line }}</div>
+    {% if cb.fng_line %}<div class="cb-line">{{ cb.fng_line }}</div>{% endif %}
+    <div class="cb-note">{{ cb.note }}</div>
+  </div>
+</section>
+{% endif %}
 
 {# ───────── ⑤ 리스크 경보: 위험게이지 임계선 감시(하방 보호) ───────── #}
 {% if d.risk_alerts %}

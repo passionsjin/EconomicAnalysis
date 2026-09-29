@@ -107,3 +107,31 @@ def test_전면적_완화는_위험선호로_판정되어야_한다():
             "us_10y2y": 1.5, "us_cfnai": 0.5}
     score, _ = regime._composite(_sig(calm))
     assert score >= 70, f"전면 완화 점수 {score} 가 강한 위험선호(>=70)가 아님"
+
+
+# ─────────────────────── 단계 히스테리시스: 경계 근처 잦은 뒤집힘 방지 ───────────────────────
+# 5년 소급 시 원점수 단계가 1250일 동안 274번(약 4.5일마다) 바뀌어 권고 비중이 매주 흔들렸다.
+
+def test_단계는_경계를_여유폭만큼_넘어야_바뀐다():
+    # 중립(43~57)에서 시작 → 58·60 은 여유폭(5) 안이라 중립 유지, 63 에서야 위험선호
+    assert regime.stable_stages([50, 58, 60, 63], band=5) == ["neutral", "neutral", "neutral", "on"]
+
+
+def test_단계는_내려갈_때도_여유폭을_요구한다():
+    # 위험선호(58~69)에서 55·54 는 유지, 52 에서 중립
+    assert regime.stable_stages([62, 55, 54, 52], band=5) == ["on", "on", "on", "neutral"]
+
+
+def test_경계를_크게_넘으면_여러_단계를_한번에_건너뛴다():
+    assert regime.stable_stages([50, 20], band=5) == ["neutral", "strong_off"]
+
+
+def test_경계에서_진동하는_점수는_전환을_만들지_않는다():
+    wobble = [44, 42, 45, 41, 44, 42, 43, 40]
+    stages = regime.stable_stages(wobble, band=5)
+    assert len(set(stages)) == 1
+
+
+def test_여유폭_0_은_원점수_단계와_같다():
+    scores = [75, 60, 50, 35, 10]
+    assert regime.stable_stages(scores, band=0) == [regime.stage_of(s) for s in scores]
